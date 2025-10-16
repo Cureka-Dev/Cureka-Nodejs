@@ -1,0 +1,90 @@
+import Concern from "../DB/models/concern.js";
+import kebabCase from "lodash/kebabCase.js";
+
+// Create Concern
+export const createConcern = async (req, res) => {
+  try {
+    const { name, image = "-", description = "-", status = "active" } = req.body;
+
+    // 🔹 Check if already exists (case-insensitive)
+    const existing = await Concern.findOne({ name: new RegExp(`^${name}$`, "i") });
+    if (existing) {
+      return res.status(409).json({ status: false, message: "Concern already exists." });
+    }
+
+    // 🔹 Find latest id and increment
+    const lastConcern = await Concern.findOne().sort({ id: -1 }).select("id");
+    const nextId = lastConcern ? lastConcern.id + 1 : 1;
+
+    // 🔹 Create new concern
+    const concern = new Concern({
+      id: nextId, // ✅ Auto-increment ID
+      name,
+      slug: kebabCase(name),
+      image,
+      description,
+      status
+    });
+
+    await concern.save();
+
+    res.status(201).json({ status: true, data: concern });
+  } catch (err) {
+    console.error("Error creating concern:", err);
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+
+// Get All Concerns
+export const getAllConcerns = async (req, res) => {
+  try {
+    const { status } = req.query; // read from query params
+
+    const filter = {};
+    if (status && status === "Active") {
+      filter.status = "Active";
+    }
+
+    const concerns = await Concern.find(filter);
+    res.status(200).json({ status: true, data: concerns });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+// Get Single Concern
+export const getConcernById = async (req, res) => {
+  try {
+    const concern = await Concern.findById(req.params.id);
+    if (!concern) return res.status(404).json({ status: false, message: "Concern not found" });
+
+    res.status(200).json({ status: true, data: concern });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+// Update Concern
+export const updateConcern = async (req, res) => {
+  try {
+    const updated = await Concern.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ status: false, message: "Concern not found" });
+
+    res.status(200).json({ status: true, data: updated });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+// Delete Concern
+export const deleteConcern = async (req, res) => {
+  try {
+    const deleted = await Concern.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ status: false, message: "Concern not found" });
+
+    res.status(200).json({ status: true, message: "Concern deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ status: false, message: err.message });
+  }
+};
