@@ -1,5 +1,5 @@
 import user from "../DB/models/user.js";
-import { createCustomError } from "../errors/custom-error.js";
+// import { createCustomError } from "../errors/custom-error.js";
 import asyncWrapper from "../middlewares/asyncWrapper.js";
 import logger from "../middlewares/logger.js";
 import { generateToken } from "../utils/jwt.js";
@@ -78,7 +78,8 @@ export const getUser = asyncWrapper(
             return res.status(200).json({ singleUser });
         }
 
-        const error = createCustomError('User Not Found', 404);
+        // const error = createCustomError('User Not Found', 404);
+        return res.status(404).json({'Message' : 'User Not Found' });
         logger.error("getUser", error);
         next(error);
     }
@@ -93,7 +94,8 @@ export const editUser = asyncWrapper(
 
         // check if the user not found
         if (!targetUser) {
-            const error = createCustomError('User Not Found', 404);
+            // const error = createCustomError('User Not Found', 404);
+            return res.status(404).json({'Message' : 'User Not Found' });
             next(error);
             logger.error("editUser", error);
         }
@@ -116,7 +118,8 @@ export const signin = asyncWrapper(
         });
         //console.log("singleUser", singleUser);
         if (singleUser.length == 0) {
-            const error = createCustomError('User Not Found', 404);
+            // const error = createCustomError('User Not Found', 404);
+            return res.status(404).json({'Message' : 'User Not Found' });
             logger.error("signin", error);
             next(error);
         }
@@ -152,7 +155,8 @@ export const signin = asyncWrapper(
             //console.log("updatedUser",updatedUser);
             return res.status(200).json({ token: token, userInfo: singleUser[0] });
         } else {
-            const error = createCustomError('OTP Wrong', 400);
+            // const error = createCustomError('OTP Wrong', 400);
+            return res.status(400).json({'Message' : 'OTP Wrong' });
             logger.error("signin", error);
             next(error);
         }
@@ -173,7 +177,8 @@ export const getUsers = asyncWrapper(
             return res.status(200).json({ users });
         }
 
-        const error = createCustomError('User Not Found', 404);
+        // const error = createCustomError('User Not Found', 404);
+        return res.status(404).json({'Message' : 'User Not Found' });
         logger.error("getUser", error);
         next(error);
     }
@@ -873,7 +878,8 @@ export const getUserByUserId = asyncWrapper(
             return res.status(200).json({ singleUser });
         }
 
-        const error = createCustomError('User Not Found', 404);
+        // const error = createCustomError('User Not Found', 404);
+         return res.status(404).json({'Message' : 'User Not Found' });
         logger.error("getUser", error);
         next(error);
     }
@@ -936,7 +942,8 @@ export const sendCall = asyncWrapper(
 
         }
         else {
-            const error = createCustomError('User Not Found', 404);
+            // const error = createCustomError('User Not Found', 404);
+             return res.status(404).json({'Message' : 'User Not Found' });
             next(error);
         }
 
@@ -979,7 +986,8 @@ export const getUserCallStatus = asyncWrapper(
             return res.status(200).json({ callStatus });
         }
 
-        const error = createCustomError('User Not Found', 404);
+        // const error = createCustomError('User Not Found', 404);
+         return res.status(404).json({'Message' : 'User Not Found' });
         logger.error("getUser", error);
         next(error);
     }
@@ -994,12 +1002,14 @@ export const answerCall = asyncWrapper(
         const targetRecevier = await user.findById(recevierId);
         // check if the user not found
         if (!targetSender) {
-            const error = createCustomError('SenderId Not Found', 404);
+            // const error = createCustomError('SenderId Not Found', 404);
+             return res.status(404).json({'Message' : 'SenderId Not Found' });
             next(error);
             logger.error("answerCall--- Sender", error);
         }
         if (!targetRecevier) {
-            const error = createCustomError('RecevierId Not Found', 404);
+            // const error = createCustomError('RecevierId Not Found', 404);
+             return res.status(404).json({'Message' : 'RecevierId Not Found' });
             next(error);
             logger.error("answerCall--Recevier", error);
         }
@@ -1039,10 +1049,12 @@ export const endCall = asyncWrapper(
 
             // Validate sender and receiver
             if (!targetSender) {
-                return next(createCustomError('SenderId Not Found', 404));
+                // return next(createCustomError('SenderId Not Found', 404));
+                return res.status(404).json({'Message' : 'SenderId Not Found' });
             }
             if (!targetRecevier) {
-                return next(createCustomError('ReceiverId Not Found', 404));
+                // return next(createCustomError('ReceiverId Not Found', 404));
+                return res.status(404).json({'Message' : 'ReceiverId Not Found' });
             }
 
             // Update the call status of both users
@@ -1089,7 +1101,8 @@ export const deleteUser = asyncWrapper(
 
         // check if the user not found
         if (!targetUser) {
-            const error = createCustomError('User Not Found', 404);
+            // const error = createCustomError('User Not Found', 404);
+            return res.status(404).json({'Message' : 'User Not Found' });
             next(error);
             logger.error("editUser", error);
         }

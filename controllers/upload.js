@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename); // Correct usage of path.dirname
 // Define the file path
 const filePath = path.join(__dirname, '../thumbnails/thumbnails.png'); // Replace with your file name
 
-import { createCustomError } from "../errors/custom-error.js";
+// import { createCustomError } from "../errors/custom-error.js";
 import asyncWrapper from "../middlewares/asyncWrapper.js";
 import logger from "../middlewares/logger.js";
 //import upload from "../middlewares/upload.js";

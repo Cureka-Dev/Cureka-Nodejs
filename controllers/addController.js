@@ -249,10 +249,14 @@ export const getAllCuratedAdds = async (req, res) => {
     for (let i = 0; i < curatedDocs.length; i++) {
       if (curatedDocs[i].products) {
         // split comma-separated string into array of numbers
-        const productIds = curatedDocs[i].products
+        // const productIds = curatedDocs[i].products
+        //   .split(",")
+        //   .map(id => Number(id.trim()))
+        //   .filter(id => !isNaN(id));
+        const productIds = typeof curatedDocs[i].products === "string" ? curatedDocs[i].products
           .split(",")
           .map(id => Number(id.trim()))
-          .filter(id => !isNaN(id));
+          .filter(id => !isNaN(id)) : curatedDocs[i].products;
 //console.log("productIds",productIds);
         if (productIds.length > 0) {
           const products = await mongoose.connection.db

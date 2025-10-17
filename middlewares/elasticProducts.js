@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import Product from "../DB/models/product.js";
 import elasticClient from "./elasticsearch.js";
 
-const MONGO_URI = "mongodb://localhost:27017/cureka"; // ✅ adjust this
-
+// const MONGO_URI = "mongodb://localhost:27017/cureka"; // ✅ adjust this
+const MONGO_URI = "mongodb+srv://openmeddbuser:TYPn1e8KYaZjucxF@openmedhealthcare.ehecdgi.mongodb.net/curekamongo";
 const reindexProductsToElastic = async () => {
   try {
     await mongoose.connect(MONGO_URI, {
