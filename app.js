@@ -64,7 +64,7 @@ const app = Express();
 //   await createElasticIndex();        // Always create after delete
 // })();
 // Middlewares
-const allowedOrigins = ["http://localhost:3000", "http://139.59.40.225:3000", "http://3.110.101.159:3000", "http://192.168.0.120:3000", "http://172.31.13.192:3000", "https://tst.openteqdev.com", "http://103.177.225.25:3007", "https://103.177.225.25:3007","http://159.65.146.149:3000","https://curekans.openteqdev.com","https://beta.cureka.com/"];
+const allowedOrigins = ["http://localhost:3000", "http://139.59.40.225:3000", "http://3.110.101.159:3000", "http://192.168.0.120:3000", "http://172.31.13.192:3000", "https://tst.openteqdev.com", "http://103.177.225.25:3007", "https://103.177.225.25:3007","http://159.65.146.149:3000","https://beta.cureka.com"];
 const corsOptions = {
   origin: function (origin, callback) {
     //console.log(origin);
