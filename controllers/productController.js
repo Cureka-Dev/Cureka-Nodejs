@@ -1043,18 +1043,63 @@ export const categoryProducts = async (req, res) => {
     // ✅ Sorting
     const sortOptions = {};
     sortOptions[sortBy] = sortBy === "vendor_article_name" ? 1 : -1;
-    const sortValue = await sortByValue(sortBy);
-    // ✅ Products query
-    const products = await Product.find(finalQuery)
-      .populate("brand", "name")
-      .sort(sortValue)
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+    // const sortValue = await sortByValue(sortBy);
+    // const products = await Product.find(finalQuery)
+    //   .populate("brand", "name")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+
+let sortValue = {};
+if (req.query.sortBy) {
+  const [field, order] = req.query.sortBy.split(" ");
+  sortValue[field] = order === "desc" ? -1 : 1;
+} else {
+  sortValue = { ranking: 1 }; // default
+}
+
+    const products = await Product.aggregate([
+  //  Filter (same as find)
+  { $match: finalQuery },
+
+  // Join with brands collection (LEFT JOIN)
+  {
+    $lookup: {
+      from: "brands",             // name of the Brand collection
+      localField: "brand",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "brand"                 // output field name
+    }
+  },
+
+  // Unwind to turn the joined brand array into an object
+  {
+    $unwind: {
+      path: "$brand",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  // Sort (same as .sort(sortValue))
+  { $sort: sortValue },
+
+  // Pagination (same as skip + limit)
+  { $skip: (page - 1) * pageSize },
+  { $limit: pageSize },
+
+]);
+
+
+
 
     // ✅ Add category name directly into each product
     products.forEach((product) => {
       product.category_name = category.name;
+      product.brand_name = product.brand.name ? product.brand.name : "";
+      product.brand = product.brand.id ? product.brand.id : "";
+
       // product.product_images = product.product_images?.length
       //   ? product.product_images.map((img, index) => ({
       //     image: img.url || img,   // handle case if it's just a string
@@ -1183,7 +1228,7 @@ export const subcategoryProducts = async (req, res) => {
         .json({ error: `Invalid sortBy parameter '${sortBy}'` });
     }
 
-    const sortValue = await sortByValue(sortBy);
+    // const sortValue = await sortByValue(sortBy);
 
     // ✅ Find the subcategory
     const subCategory = await SubCategory.findOne({ slug }).lean();
@@ -1244,16 +1289,62 @@ export const subcategoryProducts = async (req, res) => {
     const totalItems = await Product.countDocuments(finalQuery);
 
     // ✅ Get products
-    const products = await Product.find(finalQuery)
-      .populate("brand", "name")
-      .populate("category_id", "name slug")
-      .populate("sub_category_id", "name slug")
-      .populate("sub_sub_category_id", "name slug")
-      .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
-      .sort(sortValue)
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+    // const products = await Product.find(finalQuery)
+    //   .populate("brand", "name")
+    //   .populate("category_id", "name slug")
+    //   .populate("sub_category_id", "name slug")
+    //   .populate("sub_sub_category_id", "name slug")
+    //   .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+    let sortValue = {};
+if (req.query.sortBy) {
+  const [field, order] = req.query.sortBy.split(" ");
+  sortValue[field] = order === "desc" ? -1 : 1;
+} else {
+  sortValue = { ranking: 1 }; // default
+}
+
+        const products = await Product.aggregate([
+  //  Filter (same as find)
+  { $match: finalQuery },
+
+  // Join with brands collection (LEFT JOIN)
+  {
+    $lookup: {
+      from: "brands",             // name of the Brand collection
+      localField: "brand",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "brand"                 // output field name
+    }
+  },
+
+  // Unwind to turn the joined brand array into an object
+  {
+    $unwind: {
+      path: "$brand",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  // Sort (same as .sort(sortValue))
+  { $sort: sortValue },
+
+  // Pagination (same as skip + limit)
+  { $skip: (page - 1) * pageSize },
+  { $limit: pageSize },
+
+]);
+
+    // ✅ Add brand name directly into each product
+    products.forEach((product) => {
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+    });
+
 
     const productIds = products.map((p) => p.product_id);
 
@@ -1409,7 +1500,7 @@ export const subSubCategoryProducts = async (req, res) => {
     if (!allowedSortFields.includes(sortBy)) {
       return res.status(400).json({ error: "Invalid sortBy parameter" });
     }
-    const sortValue = await sortByValue(sortBy);
+    // const sortValue = await sortByValue(sortBy);
 
     // ✅ Find sub-sub-category by slug
     const subSubCategory = await SubSubCategory.findOne({ slug: slugName }).lean();
@@ -1471,17 +1562,63 @@ export const subSubCategoryProducts = async (req, res) => {
     const finalQuery = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
 
     const totalItems = await Product.countDocuments(finalQuery);
+        let sortValue = {};
+if (req.query.sortBy) {
+  const [field, order] = req.query.sortBy.split(" ");
+  sortValue[field] = order === "desc" ? -1 : 1;
+} else {
+  sortValue = { ranking: 1 }; // default
+}
 
-    const products = await Product.find(finalQuery)
-      .populate("brand", "name")
-      .populate("category_id", "name slug")
-      .populate("sub_category_id", "name slug")
-      .populate("sub_sub_category_id", "name slug")
-      .populate("sub_sub_sub_category_id", "name slug")
-      .sort(sortValue)
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+    // const products = await Product.find(finalQuery)
+    //   .populate("brand", "name")
+    //   .populate("category_id", "name slug")
+    //   .populate("sub_category_id", "name slug")
+    //   .populate("sub_sub_category_id", "name slug")
+    //   .populate("sub_sub_sub_category_id", "name slug")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+
+            const products = await Product.aggregate([
+  //  Filter (same as find)
+  { $match: finalQuery },
+
+  // Join with brands collection (LEFT JOIN)
+  {
+    $lookup: {
+      from: "brands",             // name of the Brand collection
+      localField: "brand",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "brand"                 // output field name
+    }
+  },
+
+  // Unwind to turn the joined brand array into an object
+  {
+    $unwind: {
+      path: "$brand",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  // Sort (same as .sort(sortValue))
+  { $sort: sortValue },
+
+  // Pagination (same as skip + limit)
+  { $skip: (page - 1) * pageSize },
+  { $limit: pageSize },
+
+]);
+
+    // ✅ Add brand name directly into each product
+    products.forEach((product) => {
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+    });
+
 
     // ✅ Filters
     const filters = {};
@@ -1616,7 +1753,7 @@ export const concernProducts = async (req, res) => {
 
     const sortOptions = {};
     sortOptions[sortBy] = sortBy === "vendor_article_name" ? 1 : -1;
-    const sortValue = await sortByValue(sortBy);
+    // const sortValue = await sortByValue(sortBy);
 
     // Find concern ID by slug
     const concern = await Concern.findOne({ slug });
@@ -1664,16 +1801,62 @@ export const concernProducts = async (req, res) => {
     // Fetch products
     const totalItems = await Product.countDocuments(query);
 
-    const products = await Product.find(query)
-      .populate("brand", "name")
-      .populate("category_id", "name slug")
-      .populate("sub_category_id", "name slug")
-      .populate("sub_sub_category_id", "name slug")
-      .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
-      .sort(sortValue)
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean();
+            let sortValue = {};
+if (req.query.sortBy) {
+  const [field, order] = req.query.sortBy.split(" ");
+  sortValue[field] = order === "desc" ? -1 : 1;
+} else {
+  sortValue = { ranking: 1 }; // default
+}
+
+    // const products = await Product.find(query)
+    //   .populate("brand", "name")
+    //   .populate("category_id", "name slug")
+    //   .populate("sub_category_id", "name slug")
+    //   .populate("sub_sub_category_id", "name slug")
+    //   .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+  const products = await Product.aggregate([
+  //  Filter (same as find)
+  { $match: query },
+
+  // Join with brands collection (LEFT JOIN)
+  {
+    $lookup: {
+      from: "brands",             // name of the Brand collection
+      localField: "brand",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "brand"                 // output field name
+    }
+  },
+
+  // Unwind to turn the joined brand array into an object
+  {
+    $unwind: {
+      path: "$brand",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  // Sort (same as .sort(sortValue))
+  { $sort: sortValue },
+
+  // Pagination (same as skip + limit)
+  { $skip: (page - 1) * pageSize },
+  { $limit: pageSize },
+
+]);
+
+    // ✅ Add brand name directly into each product
+    products.forEach((product) => {
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+    });
+
 
     const productIds = products.map((p) => p.id);
     const reviews = await ProductReview.find({
