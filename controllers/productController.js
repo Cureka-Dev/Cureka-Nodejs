@@ -1791,7 +1791,12 @@ export const brandProducts = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize) || 30;
     const sortBy = req.query.sortBy || "ranking";
     const slug = req.params.slug;
-
+    const sanitizedSlug = slug.replace(/[^a-zA-Z0-9]/g, "");
+    console.log("sanitizedSlug",sanitizedSlug);
+    const regexPattern = sanitizedSlug
+      .split("")              // split into letters
+      .map(char => char + "[\\s.-]*") // allow spaces, dots, dashes in between
+      .join("");
     // const allowedSortFields = [
     //   "ranking",
     //   "mrp",
@@ -1809,7 +1814,8 @@ export const brandProducts = async (req, res) => {
     const sortValue = await sortByValue(sortBy);
 
     // Get the brand ID by slug
-    const brandDoc = await Brand.findOne({ name: slug });
+    // const brandDoc = await Brand.findOne({ name: slug });
+    const brandDoc = await Brand.findOne({name: { $regex: new RegExp(regexPattern, "i") }, });
     if (!brandDoc) {
       return res.status(404).json({ error: "Brand not found" });
     }
