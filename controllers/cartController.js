@@ -187,7 +187,7 @@ export const getCart = async (req, res) => {
 
 export const addToCart = async (req, res) => {
   try {
-    //console.log("141753",req.user);
+    console.log("addToCart",req.body);
     const userId = req.body.userId;
     //console.log("userId",userId);
     const tempData = req.header("Tempdata");
