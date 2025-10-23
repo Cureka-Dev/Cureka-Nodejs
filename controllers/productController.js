@@ -1339,12 +1339,6 @@ if (req.query.sortBy) {
 
 ]);
 
-    // ✅ Add brand name directly into each product
-    products.forEach((product) => {
-      product.brand_name = product?.brand?.name ? product.brand.name : "";
-      product.brand = product?.brand?.id ? product.brand.id : "";
-    });
-
 
     const productIds = products.map((p) => p.product_id);
 
@@ -1367,6 +1361,9 @@ if (req.query.sortBy) {
       //   : [];
       product.product_reviews = reviewsByProductId[product._id.toString()] || [];
       product.category_name = categoryName;
+            product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+
     });
 
     // ✅ Filters
@@ -1459,14 +1456,6 @@ if (req.query.sortBy) {
       })
     ).then((arr) => arr.filter(Boolean).sort((a, b) => b.count - a.count));
 
-    products.forEach((product) => {
-      // product.product_images = product.images?.length
-      //   ? product.images.map((img, index) => ({
-      //       image: img.url || img,
-      //       sortOrder: img.sortOrder || index + 1,
-      //     }))
-      //   : [];
-    });
     const cleanedFilters = cleanFilters(filters);
     // ✅ Response
     res.status(200).json({
@@ -1613,13 +1602,6 @@ if (req.query.sortBy) {
 
 ]);
 
-    // ✅ Add brand name directly into each product
-    products.forEach((product) => {
-      product.brand_name = product?.brand?.name ? product.brand.name : "";
-      product.brand = product?.brand?.id ? product.brand.id : "";
-    });
-
-
     // ✅ Filters
     const filters = {};
 
@@ -1718,6 +1700,8 @@ if (req.query.sortBy) {
       //     }))
       //   : [];
       product.category_name = categoryName;
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
     });
     const cleanedFilters = cleanFilters(filters);
     res.status(200).json({
@@ -1851,11 +1835,6 @@ if (req.query.sortBy) {
 
 ]);
 
-    // ✅ Add brand name directly into each product
-    products.forEach((product) => {
-      product.brand_name = product?.brand?.name ? product.brand.name : "";
-      product.brand = product?.brand?.id ? product.brand.id : "";
-    });
 
 
     const productIds = products.map((p) => p.id);
@@ -1874,6 +1853,9 @@ if (req.query.sortBy) {
     products.forEach((product) => {
       product.product_images = product.product_images?.length ? [product.product_images[0]] : [];
       product.product_reviews = reviewsByProductId[product._id.toString()] || [];
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+
     });
 
     // Build filters from baseQuery (null/undefined removed)
