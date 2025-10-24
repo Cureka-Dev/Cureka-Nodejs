@@ -1,5 +1,7 @@
 import Concern from "../DB/models/concern.js";
 import kebabCase from "lodash/kebabCase.js";
+import NodeCache from "node-cache";
+const cache = new NodeCache({ stdTTL: 300 }); // cache for 120 seconds
 
 // Create Concern
 export const createConcern = async (req, res) => {
@@ -37,17 +39,47 @@ export const createConcern = async (req, res) => {
 
 
 // Get All Concerns
+// export const getAllConcerns = async (req, res) => {
+//   try {
+//     const { status } = req.query; // read from query params
+
+//     const filter = {};
+//     if (status && status === "Active") {
+//       filter.status = "Active";
+//     }
+
+//     const concerns = await Concern.find(filter);
+//     res.status(200).json({ status: true, data: concerns });
+//   } catch (err) {
+//     res.status(500).json({ status: false, message: err.message });
+//   }
+// };
+
 export const getAllConcerns = async (req, res) => {
   try {
-    const { status } = req.query; // read from query params
+    const { status } = req.query;
+    const cacheKey = status ? `concerns_${status}` : "concerns_all";
 
+    // 1️⃣ Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      console.log("🔁 Returning cached concerns");
+      return res.status(200).json({ status: true, data: cachedData, cached: true });
+    }
+
+    // 2️⃣ Fetch from DB
     const filter = {};
     if (status && status === "Active") {
       filter.status = "Active";
     }
 
     const concerns = await Concern.find(filter);
-    res.status(200).json({ status: true, data: concerns });
+
+    // 3️⃣ Save in cache
+    cache.set(cacheKey, concerns);
+
+    console.log("💾 Cached concerns for key:", cacheKey);
+    res.status(200).json({ status: true, data: concerns, cached: false });
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
   }

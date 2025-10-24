@@ -6,6 +6,8 @@ import SubSubSubCategory from '../DB/models/subSubSubCategory.js';
 import { generateUniqueCategoryCode, generateUniqueCode } from '../utils/codeUtils.js';
 import category from '../DB/models/category.js';
 import subCategory from '../DB/models/subCategory.js';
+import NodeCache from "node-cache";
+const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 // Model mapping for different category levels
 const categoryModels = [Category, SubCategory, SubSubCategory, SubSubSubCategory];
@@ -142,10 +144,129 @@ export const deleteCategoryItem = async (req, res) => {
 };
 
 
+// export const getNestedCategories = async (req, res) => {
+//   try {
+//     const statusActive = "Active";
+
+//     const results = await Category.aggregate([
+//       { $match: { status: statusActive } },
+//       {
+//         $lookup: {
+//           from: "subcategories",
+//           localField: "id",
+//           foreignField: "category_id",
+//           pipeline: [
+//             { $match: { status: statusActive } },
+//             {
+//               $lookup: {
+//                 from: "subsubcategories",
+//                 localField: "id", // sub_category.id
+//                 foreignField: "sub_category_id",
+//                 pipeline: [
+//                   { $match: { status: statusActive } },
+//                   {
+//                     $lookup: {
+//                       from: "subsubsubcategories",
+//                       localField: "id", // sub_sub_category.id
+//                       foreignField: "sub_sub_category_id",
+//                       pipeline: [
+//                         { $match: { status: statusActive } },
+//                         {
+//                           $project: {
+//                             name: 1, // ✅ added original name
+//                             sub_sub_sub_category_id: "$id",
+//                             sub_sub_sub_category_name: "$name",
+//                             sub_sub_sub_category_image: "$image",
+//                             sub_sub_sub_category_description: "$description",
+//                             sub_sub_sub_category_status: "$status",
+//                             sub_sub_sub_category_slug: "$slug",
+//                             sub_sub_sub_category_code: "$code",
+//                             sub_sub_sub_category_created_at: "$created_at",
+//                             sub_sub_sub_category_updated_at: "$updated_at"
+//                           }
+//                         }
+//                       ],
+//                       as: "sub_sub_sub_categories"
+//                     }
+//                   },
+//                   {
+//                     $project: {
+//                       name: 1, // ✅ added original name
+//                       sub_sub_category_id: "$id",
+//                       sub_sub_category_name: "$name",
+//                       sub_sub_category_image: "$image",
+//                       sub_sub_category_description: "$description",
+//                       sub_sub_category_status: "$status",
+//                       sub_sub_category_slug: "$slug",
+//                       sub_sub_category_code: "$code",
+//                       sub_sub_category_created_at: "$created_at",
+//                       sub_sub_category_updated_at: "$updated_at",
+//                       sub_sub_sub_categories: 1
+//                     }
+//                   }
+//                 ],
+//                 as: "sub_sub_categories"
+//               }
+//             },
+//             {
+//               $project: {
+//                 name: 1, // ✅ added original name
+//                 sub_category_id: "$id",
+//                 sub_category_name: "$name",
+//                 sub_category_image: "$image",
+//                 sub_category_description: "$description",
+//                 sub_category_status: "$status",
+//                 sub_category_slug: "$slug",
+//                 sub_category_code: "$code",
+//                 sub_category_created_at: "$created_at",
+//                 sub_category_updated_at: "$updated_at",
+//                 sub_sub_categories: 1
+//               }
+//             }
+//           ],
+//           as: "sub_categories"
+//         }
+//       },
+//       {
+//         $project: {
+//           name: 1, // ✅ added original name
+//           category_id: "$id",
+//           category_name: "$name",
+//           category_image: "$image",
+//           category_description: "$description",
+//           category_status: "$status",
+//           category_nav_link: "$nav_link",
+//           category_slug: "$slug",
+//           category_code: "$code",
+//           category_created_at: "$created_at",
+//           category_updated_at: "$updated_at",
+//           sub_categories: 1
+//         }
+//       }
+//     ]);
+
+//     res.status(200).json({ categories: results });
+//   } catch (err) {
+//     console.error("Error retrieving nested categories:", err);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
+
 export const getNestedCategories = async (req, res) => {
   try {
+    const cacheKey = "nested_categories_active"; // unique key for this data
+
+    // 1️⃣ Try to get data from cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      console.log("🔁 Returning cached nested categories");
+      return res.status(200).json({ categories: cachedData, cached: true });
+    }
+
     const statusActive = "Active";
 
+    // 2️⃣ If not cached, run MongoDB aggregation
     const results = await Category.aggregate([
       { $match: { status: statusActive } },
       {
@@ -158,20 +279,20 @@ export const getNestedCategories = async (req, res) => {
             {
               $lookup: {
                 from: "subsubcategories",
-                localField: "id", // sub_category.id
+                localField: "id",
                 foreignField: "sub_category_id",
                 pipeline: [
                   { $match: { status: statusActive } },
                   {
                     $lookup: {
                       from: "subsubsubcategories",
-                      localField: "id", // sub_sub_category.id
+                      localField: "id",
                       foreignField: "sub_sub_category_id",
                       pipeline: [
                         { $match: { status: statusActive } },
                         {
                           $project: {
-                            name: 1, // ✅ added original name
+                            name: 1,
                             sub_sub_sub_category_id: "$id",
                             sub_sub_sub_category_name: "$name",
                             sub_sub_sub_category_image: "$image",
@@ -189,7 +310,7 @@ export const getNestedCategories = async (req, res) => {
                   },
                   {
                     $project: {
-                      name: 1, // ✅ added original name
+                      name: 1,
                       sub_sub_category_id: "$id",
                       sub_sub_category_name: "$name",
                       sub_sub_category_image: "$image",
@@ -208,7 +329,7 @@ export const getNestedCategories = async (req, res) => {
             },
             {
               $project: {
-                name: 1, // ✅ added original name
+                name: 1,
                 sub_category_id: "$id",
                 sub_category_name: "$name",
                 sub_category_image: "$image",
@@ -227,7 +348,7 @@ export const getNestedCategories = async (req, res) => {
       },
       {
         $project: {
-          name: 1, // ✅ added original name
+          name: 1,
           category_id: "$id",
           category_name: "$name",
           category_image: "$image",
@@ -243,9 +364,14 @@ export const getNestedCategories = async (req, res) => {
       }
     ]);
 
-    res.status(200).json({ categories: results });
+    // 3️⃣ Store results in cache for next time
+    cache.set(cacheKey, results);
+
+    console.log("💾 Cached nested categories data");
+    res.status(200).json({ categories: results, cached: false });
+
   } catch (err) {
-    console.error("Error retrieving nested categories:", err);
+    console.error("❌ Error retrieving nested categories:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
