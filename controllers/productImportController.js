@@ -58,7 +58,7 @@ const getIdSafe = (doc, fieldName, productId) => {
 const importProducts = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
+    console.log(req.file,"Import Product");
     const workbook = await readExcelFile(req.file.path);
     const worksheet = workbook.worksheets[0];
 
@@ -75,7 +75,8 @@ const importProducts = async (req, res) => {
       row.eachCell((cell, i) => (obj[headers[i - 1]] = cell.value));
       products.push(obj);
     });
-
+    console.log("Products-=-=-=",products);
+    
     for (const p of products) {
       const [
         category,
@@ -87,25 +88,45 @@ const importProducts = async (req, res) => {
         concern2,
         concern3,
       ] = await Promise.all([
-        Category.findOne({ id: p.category }),
-        SubCategory.findOne({ id: p.sub_category }),
-        SubSubCategory.findOne({ id: p.sub_sub_category }),
-        SubSubSubCategory.findOne({ id: p.sub_sub_sub_category }),
-        Brand.findOne({ id: p.brand }),
-        Concern.findOne({ id: p.concern_1 }),
-        Concern.findOne({ id: p.concern_2 }),
-        Concern.findOne({ id: p.concern_3 }),
+        Category.findOne({ name: p.category }),
+        SubCategory.findOne({ name: p.sub_category }),
+        SubSubCategory.findOne({ name: p.sub_sub_category }),
+        SubSubSubCategory.findOne({ sub_sub_sub_category_name: p.sub_sub_sub_category }),
+        Brand.findOne({ name: p.brand }),
+        Concern.findOne({ name: p.concern_1 }),
+        Concern.findOne({ name: p.concern_2 }),
+        Concern.findOne({ name: p.concern_3 }),
       ]);
-
+      console.log("Details",category,
+        subCategory,
+        subSubCategory,
+        subSubSubCategory,
+        brand,
+        concern1,
+        concern2,
+        concern3,);
+      
       // ✅ Check for missing references and throw error
       const brandId = getIdSafe(brand, "brand", p.product_id);
       const categoryId = getIdSafe(category, "category", p.product_id);
       const subCategoryId = getIdSafe(subCategory, "sub_category", p.product_id);
       const subSubCategoryId = getIdSafe(subSubCategory, "sub_sub_category", p.product_id);
-      const subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
+      // const subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
+      let subSubSubCategoryId = null;
+      if (p.sub_sub_sub_category) {
+        subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
+      }
       const concern1Id = getIdSafe(concern1, "concern_1", p.product_id);
-      const concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
-      const concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
+      let concern2Id = null;
+      if (p.concern_2) {
+        concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+      }
+      // const concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+      let concern3Id = null;
+      if (p.concern_3) {
+        concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
+      }
+      // const concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
 
       const final_price = calculateFinalPrice(
         p.mrp,
