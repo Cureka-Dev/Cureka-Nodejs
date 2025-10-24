@@ -2497,9 +2497,13 @@ export const getProductsByGroup = async (req, res) => {
 
     dynamicFilters.forEach((key) => {
       if (key === "brand") {
-        match.brand = {
-          $in: req.query[key].split(",").map((id) => parseInt(id)),
-        };
+        const brandIds = req.query[key]
+        .split(",")
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
+        if (brandIds.length > 0) {
+          match.brand = { $in: brandIds };
+        }
       } else if (key === "concern") {
         const concernId = parseInt(req.query[key]);
         match.$or = [
@@ -2530,14 +2534,36 @@ export const getProductsByGroup = async (req, res) => {
     });
 
     // ✅ sorting
-    let sort = {};
-    if (slugName === "new-arrivals") {
-      sort = { newarrival_ranking: 1 };
-    } else if (slugName === "top-picks") {
-      sort = { toppics_ranking: 1 };
-    } else {
-      sort = { ranking: 1 };
-    }
+    let sort = { ranking: 1 };
+    // if (slugName === "new-arrivals") {
+    //   sort = { newarrival_ranking: 1 };
+    // } else if (slugName === "top-picks") {
+    //   sort = { toppics_ranking: 1 };
+    // } else {
+    //   sort = { ranking: 1 };
+    // }
+
+
+switch (req.query.sortBy) {
+  case "price-low-to-high":
+    sort = { final_price: 1 };
+    break;
+  case "price-high-to-low":
+    sort = { final_price: -1 };
+    break;
+  case "new-arrivals":
+    sort = { created_at: -1 }; // newest first
+    break;
+  case "popularity":
+    sort = { ranking: 1 }; // or whatever field you use for popularity
+    break;
+  case "discount":
+    sort = { discount_percent: -1 }; // highest discount first
+    break;
+  default:
+    sort = { ranking: 1 }; // default sort
+}
+
 
     // ✅ lookup pipeline with direct category name
     const productLookupPipeline = [
@@ -2675,6 +2701,12 @@ export const getProductsByGroup = async (req, res) => {
         },
       },
     ]);
+
+    // brand name sort by asc
+    const sortedBrand = filtersAgg[0]['brand'].sort((a, b) => 
+        a.value.toLowerCase().localeCompare(b.value.toLowerCase())
+    );
+    filtersAgg[0]['brand'] = sortedBrand;
 
     const filters = filtersAgg[0];
     const allowedSortFields = [
