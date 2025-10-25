@@ -491,8 +491,7 @@ export const getProductBySlug = async (req, res) => {
       }
     });
 
-    // Final response
-    res.status(200).json({
+    let objectData = {
       ...product,
       category_name: category?.name || null,
       category_slug: category?.slug || null,
@@ -509,8 +508,13 @@ export const getProductBySlug = async (req, res) => {
       bundles,
       product_reviews,
       ratingCount,
-      popups,
-    });
+      popups
+    }
+
+    let json_string = JSON.stringify(objectData).replace("//n", "/n");
+    let finalData = JSON.parse(json_string);
+    // Final response
+    res.status(200).json(finalData);
   } catch (error) {
     console.error("Error fetching product by slug:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -702,19 +706,44 @@ export const searchProducts = async (req, res) => {
       query.vendor_article_name = { $regex: `\\b${escapedTerm}\\b`, $options: "i" };
     }
 
-    // 🔹 Apply dynamic filters from query
-    const dynamicFilters = Object.keys(req.query).filter(
-      (key) => !["page", "pageSize", "sortBy", "search_term"].includes(key)
-    );
+    // // 🔹 Apply dynamic filters from query
+    // const dynamicFilters = Object.keys(req.query).filter(
+    //   (key) => !["page", "pageSize", "sortBy", "search_term"].includes(key)
+    // );
 
-    for (const key of dynamicFilters) {
-      if (key === "brand") {
-        const brandNames = req.query.brand.split(",");
-        const brandDocs = await Brand.find({ name: { $in: brandNames } });
-        const brandIds = brandDocs.map(b => b._id);
-        query.brand = { $in: brandIds };
-      } else {
-        query[key] = req.query[key];
+    // for (const key of dynamicFilters) {
+    //   if (key === "brand") {
+    //     const brandNames = req.query.brand.split(",");
+    //     const brandDocs = await Brand.find({ name: { $in: brandNames } });
+    //     const brandIds = brandDocs.map(b => b._id);
+    //     query.brand = { $in: brandIds };
+    //   } else {
+    //     query[key] = req.query[key];
+    //   }
+    // }
+
+    // Apply dynamic filters
+    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
+    for (const key of Object.keys(req.query)) {
+      if (!ignoredKeys.includes(key)) {
+        if (key === "brand") {
+          const brandNames = req.query.brand.split(",");
+          const brandDocs = await Brand.find({ name: { $in: brandNames } });
+          const brandIds = brandDocs.map((b) => b.id);
+          query.brand = { $in: brandIds };
+        } else if (key === "minPrice") {
+          query.final_price = { ...(query.final_price || {}), $gte: parseFloat(req.query[key]) };
+        } else if (key === "maxPrice") {
+          query.final_price = { ...(query.final_price || {}), $lte: parseFloat(req.query[key]) };
+        } else if (key === "min_age_years") {
+          const ageRange = decodeURIComponent(req.query[key]);
+          const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
+          if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
+          if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
+        } else {
+          let keys = req.query[key].split(",");
+          query[key] = { $in: keys };
+        }
       }
     }
 
@@ -1759,7 +1788,7 @@ export const concernProducts = async (req, res) => {
     const query = { ...baseQuery };
 
     // Apply dynamic filters
-    const ignoredKeys = ["page", "pageSize", "sortBy"];
+    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
     for (const key of Object.keys(req.query)) {
       if (!ignoredKeys.includes(key)) {
         if (key === "brand") {
@@ -1777,7 +1806,8 @@ export const concernProducts = async (req, res) => {
           if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
           if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
         } else {
-          query[key] = req.query[key];
+          let keys = req.query[key].split(",");
+          query[key] = { $in: keys };
         }
       }
     }
@@ -1785,7 +1815,7 @@ export const concernProducts = async (req, res) => {
     // Fetch products
     const totalItems = await Product.countDocuments(query);
 
-            let sortValue = {};
+let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
   sortValue[field] = order === "desc" ? -1 : 1;
@@ -1991,18 +2021,45 @@ export const brandProducts = async (req, res) => {
     const query = { brand: brandDoc.id, status: "Active" };
 
     // Apply dynamic filters
-    const ignoredKeys = ["page", "pageSize", "sortBy"];
+    // const ignoredKeys = ["page", "pageSize", "sortBy"];
+    // for (const key of Object.keys(req.query)) {
+    //   if (!ignoredKeys.includes(key)) {
+    //     const value = req.query[key];
+    //     if (key === "brand") continue; // already applied via slug
+
+    //     if (key === "minPrice") {
+    //       query.final_price = { ...query.final_price, $gte: parseFloat(value) };
+    //     } else if (key === "maxPrice") {
+    //       query.final_price = { ...query.final_price, $lte: parseFloat(value) };
+    //     } else {
+    //       // query[key] = value;
+    //       let keys = req.query[key].split(",");
+    //       query[key] = { $in: keys };
+    //     }
+    //   }
+    // }
+
+    // Apply dynamic filters
+    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
     for (const key of Object.keys(req.query)) {
       if (!ignoredKeys.includes(key)) {
-        const value = req.query[key];
-        if (key === "brand") continue; // already applied via slug
-
-        if (key === "minPrice") {
-          query.final_price = { ...query.final_price, $gte: parseFloat(value) };
+        if (key === "brand") {
+          const brandNames = req.query.brand.split(",");
+          const brandDocs = await Brand.find({ name: { $in: brandNames } });
+          const brandIds = brandDocs.map((b) => b.id);
+          query.brand = { $in: brandIds };
+        } else if (key === "minPrice") {
+          query.final_price = { ...(query.final_price || {}), $gte: parseFloat(req.query[key]) };
         } else if (key === "maxPrice") {
-          query.final_price = { ...query.final_price, $lte: parseFloat(value) };
+          query.final_price = { ...(query.final_price || {}), $lte: parseFloat(req.query[key]) };
+        } else if (key === "min_age_years") {
+          const ageRange = decodeURIComponent(req.query[key]);
+          const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
+          if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
+          if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
         } else {
-          query[key] = value;
+          let keys = req.query[key].split(",");
+          query[key] = { $in: keys };
         }
       }
     }
