@@ -48,12 +48,23 @@ const calculateFinalPrice = (mrp, discountAmt, discountPct) => {
 //const getIdSafe = (doc) => (doc ? doc.id : null);
 
 // ✅ Helper to safely get .id or return error-friendly message
-const getIdSafe = (doc, fieldName, productId) => {
+// const getIdSafe = (doc, fieldName, productId) => {
+//   if (!doc) {
+//     throw new Error(`Missing reference: ${fieldName} not found for product_id ${productId}`);
+//   }
+//   return doc.id;
+// };
+
+const getIdSafe = (doc, fieldName, productId, isRequired = false) => {
   if (!doc) {
-    throw new Error(`Missing reference: ${fieldName} not found for product_id ${productId}`);
+    const msg = `⚠️ Missing reference: ${fieldName} not found for product_id ${productId}`;
+    if (isRequired) throw new Error(msg);
+    console.warn(msg);
+    return null;
   }
   return doc.id;
 };
+
 
 const importProducts = async (req, res) => {
   try {
@@ -75,7 +86,6 @@ const importProducts = async (req, res) => {
       row.eachCell((cell, i) => (obj[headers[i - 1]] = cell.value));
       products.push(obj);
     });
-    console.log("Products-=-=-=",products);
     
     for (const p of products) {
       const [
@@ -97,36 +107,71 @@ const importProducts = async (req, res) => {
         Concern.findOne({ name: p.concern_2 }),
         Concern.findOne({ name: p.concern_3 }),
       ]);
-      console.log("Details",category,
-        subCategory,
-        subSubCategory,
-        subSubSubCategory,
-        brand,
-        concern1,
-        concern2,
-        concern3,);
-      
+      console.log("Detcategoryails",category);
+      console.log("subCategory",subCategory);
       // ✅ Check for missing references and throw error
-      const brandId = getIdSafe(brand, "brand", p.product_id);
-      const categoryId = getIdSafe(category, "category", p.product_id);
-      const subCategoryId = getIdSafe(subCategory, "sub_category", p.product_id);
-      const subSubCategoryId = getIdSafe(subSubCategory, "sub_sub_category", p.product_id);
-      // const subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
+      // const brandId = getIdSafe(brand, "brand", p.product_id);
+      // const categoryId = getIdSafe(category, "category", p.product_id);      
+
+      // let subCategoryId = null;
+      // if (p.sub_category) {
+      //   subCategoryId = getIdSafe(subCategory, "sub_category", p.product_id);
+      // }
+
+      // let subSubCategoryId = null;
+      // if (p.sub_sub_category) {
+      //   subSubCategoryId = getIdSafe(subSubCategory, "sub_sub_category", p.product_id);
+      // }
+
+      // let subSubSubCategoryId = null;
+      // if (p.sub_sub_sub_category) {
+      //   subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
+      // }
+
+
+      // // const concern1Id = getIdSafe(concern1, "concern_1", p.product_id);
+      // let concern1Id = null;
+      // if (p.concern_1) {
+      //   concern1Id = getIdSafe(concern1, "concern_1", p.product_id);
+      // }
+      // let concern2Id = null;
+      // if (p.concern_2) {
+      //   concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+      // }
+      // // const concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+      // let concern3Id = null;
+      // if (p.concern_3) {
+      //   concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
+      // }
+      // const concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
+
+       // ✅ Safe reference lookups
+      const brandId = getIdSafe(brand, "brand", p.product_id, true); // required
+      const categoryId = getIdSafe(category, "category", p.product_id, true); // required
+
+      let subCategoryId = null;
+      if (p.sub_category) {
+        subCategoryId = getIdSafe(subCategory, "sub_category", p.product_id);
+      }
+
+      let subSubCategoryId = null;
+      if (p.sub_sub_category) {
+        subSubCategoryId = getIdSafe(subSubCategory, "sub_sub_category", p.product_id);
+      }
+
       let subSubSubCategoryId = null;
       if (p.sub_sub_sub_category) {
         subSubSubCategoryId = getIdSafe(subSubSubCategory, "sub_sub_sub_category", p.product_id);
       }
-      const concern1Id = getIdSafe(concern1, "concern_1", p.product_id);
+
+      let concern1Id = null;
+      if (p.concern_1) concern1Id = getIdSafe(concern1, "concern_1", p.product_id);
+
       let concern2Id = null;
-      if (p.concern_2) {
-        concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
-      }
-      // const concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+      if (p.concern_2) concern2Id = getIdSafe(concern2, "concern_2", p.product_id);
+
       let concern3Id = null;
-      if (p.concern_3) {
-        concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
-      }
-      // const concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
+      if (p.concern_3) concern3Id = getIdSafe(concern3, "concern_3", p.product_id);
 
       const final_price = calculateFinalPrice(
         p.mrp,
