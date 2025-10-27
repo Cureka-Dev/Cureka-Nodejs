@@ -1958,6 +1958,14 @@ if (req.query.sortBy) {
       concern: { $in: [concern.id] },
     }).limit(1).lean();
     const cleanedFilters = cleanFilters(filters);
+
+    const sortedData = Object.fromEntries(
+       Object.entries(cleanedFilters).map(([key, arr]) => [
+       key,
+       [...arr].sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }))
+    ])
+    );
+
     res.status(200).json({
       pagination: {
         totalItems,
@@ -1967,7 +1975,7 @@ if (req.query.sortBy) {
       },
       products,
       catadata: concern,
-      filters: cleanedFilters,
+      filters: sortedData,
       allowedSortFields,
       popups,
     });
