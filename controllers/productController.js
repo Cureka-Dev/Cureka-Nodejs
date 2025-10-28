@@ -976,6 +976,8 @@ export const productsSuggestions = async (req, res) => {
     // Search suggestions for brands and categories
     const brands = await Brand.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const categories = await Category.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    const subcategories = await SubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    const subsubcategories = await SubSubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const concerns = await Concern.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const cleanedFilters = cleanFilters(filters);
     res.status(200).json({
@@ -988,6 +990,8 @@ export const productsSuggestions = async (req, res) => {
       products,
       brands,
       categories,
+      subcategories,
+      subsubcategories,
       concerns,
       filters: cleanedFilters,
       allowedSortFields,
