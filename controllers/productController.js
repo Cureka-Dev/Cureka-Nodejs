@@ -1561,6 +1561,11 @@ export const subSubCategoryProducts = async (req, res) => {
       });
     }
 
+    if (req.query.colours) {
+      const colours = req.query.colours.split(",");
+      andConditions.push({ colours : { $in : colours} });
+    }
+
     if (req.query.concern) {
       const concernNames = req.query.concern.split(",");
       const concernDocs = await Concern.find({ name: { $in: concernNames } }).lean();
