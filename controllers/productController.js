@@ -2183,7 +2183,7 @@ export const brandProducts = async (req, res) => {
 export const adminFetchProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 50;
+    const pageSize = parseInt(req.query.pageSize) || 13000;
 
     const totalItems = await Product.countDocuments({});
 
@@ -2258,6 +2258,100 @@ export const adminFetchProducts = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+// export const adminFetchProducts = async (req, res) => {
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const pageSize = parseInt(req.query.pageSize) || 13000;
+
+//     const cacheKey = `products_page_${page}_size_${pageSize}`;
+//     const cachedData = cache.get(cacheKey);
+
+//     // ✅ Serve from cache if available
+//     if (cachedData) {
+//       console.log("🟢 Serving from cache:", cacheKey);
+//       return res.status(200).json(cachedData);
+//     }
+
+//      // 🧭 Fetch fresh data from DB
+//     const totalItems = await Product.countDocuments({});
+
+//     const products = await Product.find({})
+//       .sort({ _id: -1 }) // Sort by ID descending like ORDER BY id DESC
+//       .skip((page - 1) * pageSize)
+//       .limit(pageSize)
+//       .lean();
+
+//     const productIds = products.map((p) => p.product_id);
+
+//     // Fetch images and FAQs
+//     const assets = await Product.find({ prod_id: { $in: productIds } }).lean();
+
+//     const imagesByProdId = {};
+//     const faqsByProdId = {};
+
+//     for (const asset of assets) {
+//       const pid = asset.prod_id;
+//       if (asset.type === "image") {
+//         if (!imagesByProdId[pid]) imagesByProdId[pid] = [];
+//         imagesByProdId[pid].push(asset);
+//       } else if (asset.type === "faq") {
+//         if (!faqsByProdId[pid]) faqsByProdId[pid] = [];
+//         faqsByProdId[pid].push(asset);
+//       }
+//     }
+
+//     // Collect concern and preference IDs
+//     const concernIdSet = new Set();
+//     const preferenceIdSet = new Set();
+
+//     products.forEach((p) => {
+//       ["concern_1", "concern_2", "concern_3"].forEach((key) => p[key] && concernIdSet.add(p[key]));
+//       ["preference_1", "preference_2", "preference_3"].forEach((key) => p[key] && preferenceIdSet.add(p[key]));
+//     });
+
+//     //     const concerns = await Concern.find({ _id: { $in: Array.from(concernIdSet) } }).lean();
+//     //     const preferences = await Preference.find({ name: { $in: Array.from(preferenceIdSet) } }).lean();
+//     // console.log("concerns",concerns);
+//     // console.log("preferences",preferences);
+//     //     const concernMap = {};
+//     //     const preferenceMap = {};
+
+//     //concerns.forEach((c) => (concernMap[c._id] = { value: c._id, label: c.name }));
+//     // preferences.forEach((p) => (preferenceMap[p.name] = { value: p.name, label: p.name }));
+
+//     // Enrich products
+//     products.forEach((p) => {
+//       const pid = p.product_id;
+//       //p.product_images = imagesByProdId[pid] || [];
+//       p.product_faq_array = faqsByProdId[pid] || [];
+
+//       // const concernIds = [p.concern_1, p.concern_2, p.concern_3].filter(Boolean);
+//       // p.product_concern_array = concernIds.map((id) => concernMap[id]).filter(Boolean);
+
+//       // const preferenceKeys = [p.preference_1, p.preference_2, p.preference_3].filter(Boolean);
+//       // p.product_preference_array = preferenceKeys.map((name) => preferenceMap[name]).filter(Boolean);
+//     });
+
+//     const responseData = {
+//       pagination: {
+//         totalItems,
+//         totalPages: Math.ceil(totalItems / pageSize),
+//         currentPage: page,
+//         itemsPerPage: pageSize,
+//       },
+//       products,
+//     };
+
+//     // 💾 Save to cache
+//     cache.set(cacheKey, responseData);
+//     console.log("🟡 Cached data:", cacheKey);
+
+//     res.status(200).json(responseData);
+//   } catch (error) {
+//     console.error("Error in /admin-fetch-products:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
 // ✅ Helper: safely convert to Number or null
 function toNumberOrNull(value) {
   if (value === null || value === undefined) return null;

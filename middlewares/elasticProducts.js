@@ -1,13 +1,15 @@
 import mongoose from "mongoose";
 import Product from "../DB/models/product.js";
 import elasticClient from "./elasticsearch.js";
+import dotenv from "dotenv";
 
-const MONGO_URI = "mongodb+srv://dev_db_user:ekd9zxcopRs0SQl9@cluster0.lvzcoaa.mongodb.net/cureka?retryWrites=true&w=majority&appName=Cluster0"; // ✅ adjust this
+dotenv.config();
+// const MONGO_URI = "mongodb+srv://dev_db_user:ekd9zxcopRs0SQl9@cluster0.lvzcoaa.mongodb.net/cureka?retryWrites=true&w=majority&appName=Cluster0"; // ✅ adjust this
 
 // const MONGO_URI = "mongodb://localhost:27017/cureka"
 const reindexProductsToElastic = async () => {
   try {
-    await mongoose.connect(MONGO_URI, {
+    await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
