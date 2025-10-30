@@ -976,6 +976,8 @@ export const productsSuggestions = async (req, res) => {
     // Search suggestions for brands and categories
     const brands = await Brand.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const categories = await Category.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    const subcategories = await SubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    const subsubcategories = await SubSubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const concerns = await Concern.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const cleanedFilters = cleanFilters(filters);
     res.status(200).json({
@@ -988,6 +990,8 @@ export const productsSuggestions = async (req, res) => {
       products,
       brands,
       categories,
+      subcategories,
+      subsubcategories,
       concerns,
       filters: cleanedFilters,
       allowedSortFields,
@@ -1005,55 +1009,65 @@ export const categoryProducts = async (req, res) => {
     const pageSize = parseInt(req.query.pageSize) || 30;
     const sortBy = req.query.sortBy || "ranking";
     const slugName = req.params.slug;
-    //const allowedSortFields = ["ranking", "price", "name", "createdAt"];
 
     if (!allowedSortFields.includes(sortBy)) {
       return res.status(400).json({ error: "Invalid sortBy parameter" });
     }
+    // const sortValue = await sortByValue(sortBy);
 
-    // ✅ Find category by slug
-    const category = await Category.findOne({ slug: slugName }).lean();
-    if (!category) {
-      return res.status(404).json({ error: "Category not found" });
+    // ✅ Find main category by slug
+    const Categorys = await Category.findOne({ slug: slugName }).lean();
+    if (!Categorys) {
+      return res.status(404).json({ error: "category not found" });
     }
-    const cat_id = category.id; // depends on schema
+    const C_ID = Categorys.id;
+    const filterFields = [
+      "spf", "size_chart_type", "colours", "flavours",
+      "protein_type", "formulation", "staging", "skin_type", "hair_type"
+    ];
+
+    // ✅ Fetch category name using category_id inside Categorys
+    let categoryName = null;
+    // if (subSubCategory.category_id) {
+    //   const categoryDoc = await Category.findOne({ id: subSubCategory.category_id }).lean();
+    //   categoryName = categoryDoc ? categoryDoc.name : null;
+    // }
 
     // ✅ Dynamic Filters
     const andConditions = [
-      { category_id: cat_id },
-      { status: "Active" }
+      { category_id: C_ID },
+      { status: "Active" },
     ];
 
     if (req.query.brand) {
       const brands = await Brand.find({ name: { $in: req.query.brand.split(",") } }).lean();
       const brandIds = brands.map(b => b.id);
+      console.log("brandIds======", brandIds);
       if (brandIds.length) andConditions.push({ brand: { $in: brandIds } });
     }
 
-    // ✅ Preference filter (direct from Product fields)
     if (req.query.preference) {
-      const prefValues = req.query.preference.split(",");
+      const prefNames = req.query.preference.split(",");
       andConditions.push({
         $or: [
-          { preference: { $in: prefValues } },
-          { preference_2: { $in: prefValues } },
-          { preference_3: { $in: prefValues } },
+          { preference: { $in: prefNames } },
+          { preference_2: { $in: prefNames } },
+          { preference_3: { $in: prefNames } },
         ],
       });
     }
 
-    if (req.query.concern_1) {
-      const concerns = await Concern.find({ name: { $in: req.query.concern_1.split(",") } }).lean();
-      const concernIds = concerns.map(c => c._id);
-      if (concernIds.length) {
-        andConditions.push({
-          $or: [
-            { concern_1: { $in: concernIds } },
-            { concern_2: { $in: concernIds } },
-            { concern_3: { $in: concernIds } },
-          ],
-        });
-      }
+    if (req.query.concern) {
+      const concernNames = req.query.concern.split(",");
+      const concernDocs = await Concern.find({ name: { $in: concernNames } }).lean();
+      const concernIds = concernDocs.map(c => c.id);
+      andConditions.push({
+        $or: [
+          { concern_1: { $in: concernIds } },
+          { concern_2: { $in: concernIds } },
+          { concern_3: { $in: concernIds } },
+        ],
+      });
     }
 
     if (req.query.minPrice || req.query.maxPrice) {
@@ -1063,33 +1077,41 @@ export const categoryProducts = async (req, res) => {
       andConditions.push({ final_price: priceCond });
     }
 
-    // ✅ Final query
+// ✅ Dynamic filter conditions
+for (const field of filterFields) {
+  if (req.query[field]) {
+    const values = req.query[field].split(",");
+    andConditions.push({ [field]: { $in: values } });
+  }
+}
+
     const finalQuery = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
-    //console.log("finalQuery",finalQuery);
-    // ✅ Total products
+
     const totalItems = await Product.countDocuments(finalQuery);
-
-    // ✅ Sorting
-    const sortOptions = {};
-    sortOptions[sortBy] = sortBy === "vendor_article_name" ? 1 : -1;
-    // const sortValue = await sortByValue(sortBy);
-    // const products = await Product.find(finalQuery)
-    //   .populate("brand", "name")
-    //   .sort(sortValue)
-    //   .skip((page - 1) * pageSize)
-    //   .limit(pageSize)
-    //   .lean();
-
-
-let sortValue = {};
+        let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
   sortValue[field] = order === "desc" ? -1 : 1;
 } else {
   sortValue = { ranking: 1 }; // default
 }
+    console.log("2222222222222222222222222")
 
-    const products = await Product.aggregate([
+    // const products = await Product.find(finalQuery)
+    //   .populate("brand", "name")
+    //   .populate("category_id", "name slug")
+    //   .populate("sub_category_id", "name slug")
+    //   .populate("sub_sub_category_id", "name slug")
+    //   .populate("sub_sub_sub_category_id", "name slug")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+
+    console.log("finalQuery==========", finalQuery)
+
+            const products = await Product.aggregate([
   //  Filter (same as find)
   { $match: finalQuery },
 
@@ -1120,60 +1142,44 @@ if (req.query.sortBy) {
 
 ]);
 
-
-
-
-    // ✅ Add category name directly into each product
-    products.forEach((product) => {
-      product.category_name = category.name;
-      product.brand_name = product.brand.name ? product.brand.name : "";
-      product.brand = product.brand.id ? product.brand.id : "";
-
-      // product.product_images = product.product_images?.length
-      //   ? product.product_images.map((img, index) => ({
-      //     image: img.url || img,   // handle case if it's just a string
-      //     sortOrder: img.sortOrder || index + 1,
-      //   }))
-      //   : [];
-    });
-
     // ✅ Filters
     const filters = {};
 
-    // Brand filter
+    // 🔹 Brand filter (return brand names only, remove nulls)
     const brandAgg = await Product.aggregate([
-      { $match: { category_id: cat_id, status: "Active" } },
+      { $match: { category_id: C_ID, status: "Active" } },
       { $group: { _id: "$brand", count: { $sum: 1 } } },
-      { $match: { _id: { $ne: null } } }
+      { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
     ]);
-    filters.brand = await Promise.all(
-      brandAgg.map(async (b) => {
-        const doc = await Brand.findById(b.id).lean();
-        return doc ? { value: doc.name, count: b.count } : null;
-      })
-    ).then(arr => arr.filter(Boolean).sort((a, b) => b.count - a.count));
+    const brandIds = brandAgg.map(b => b._id);
+    console.log("brandIds===============", brandIds);
+    const brandDocs = await Brand.find({ id: { $in: brandIds } }).lean();
+    const brandMap = brandDocs.reduce((acc, b) => {
+      acc[b.id] = b.name;
+      return acc;
+    }, {});
+    filters.brand = brandAgg
+      .map(b => ({ value: brandMap[b._id] || null, count: b.count }))
+      .filter(b => b.value) // 🚀 remove null values
+      .sort((a, b) => b.count - a.count);
 
-    // Simple fields
-    const filterFields = [
-      "spf", "size_chart_type", "colours", "flavours",
-      "protein_type", "formulation", "staging", "skin_type", "hair_type"
-    ];
+    // 🔹 Simple filter fields (remove nulls)
     for (const field of filterFields) {
       const result = await Product.aggregate([
-        { $match: { category_id: cat_id, status: "Active" } },
+        { $match: { category_id: C_ID, status: "Active" } },
         { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-        { $match: { _id: { $nin: [null, "", "undefined", "null"] } } },
+        { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
       ]);
       if (result.length) {
         filters[field] = result
-          .map((r) => ({ value: r._id, count: r.count }))
+          .map(r => ({ value: r._id, count: r.count }))
           .sort((a, b) => b.count - a.count);
       }
     }
 
-    // ✅ Preference filter aggregation (direct from Product)
+    // 🔹 Preference filter (remove nulls)
     const prefAgg = await Product.aggregate([
-      { $match: { category_id: cat_id, status: "Active" } },
+      { $match: { category_id: C_ID, status: "Active" } },
       {
         $project: {
           prefs: {
@@ -1186,17 +1192,16 @@ if (req.query.sortBy) {
         },
       },
       { $unwind: "$prefs" },
-      { $match: { prefs: { $nin: [null, "", "undefined", "null"] } } },
+      { $match: { prefs: { $nin: [null, "", "null", "undefined"] } } },
       { $group: { _id: "$prefs", count: { $sum: 1 } } },
     ]);
-
     filters.preference = prefAgg
       .map(p => ({ value: p._id, count: p.count }))
       .sort((a, b) => b.count - a.count);
 
-    // Concern filter
+    // 🔹 Concern filter (map IDs → names, remove nulls)
     const concernAgg = await Product.aggregate([
-      { $match: { category_id: cat_id, status: "Active" } },
+      { $match: { category_id: C_ID, status: "Active" } },
       {
         $project: {
           concerns: {
@@ -1209,19 +1214,33 @@ if (req.query.sortBy) {
         },
       },
       { $unwind: "$concerns" },
-      { $match: { concerns: { $nin: [null, "", "undefined", "null"] } } },
+      { $match: { concerns: { $nin: [null, "", "null", "undefined"] } } },
       { $group: { _id: "$concerns", count: { $sum: 1 } } },
     ]);
+    const concernIds = concernAgg.map(c => c.id);
+    const concernDocs = await Concern.find({ id: { $in: concernIds } }).lean();
+    const concernMap = concernDocs.reduce((acc, c) => {
+      acc[c.id] = c.name;
+      return acc;
+    }, {});
+    filters.concern = concernAgg
+      .map(c => ({ value: concernMap[c.id] || null, count: c.count }))
+      .filter(c => c.value) // 🚀 remove null values
+      .sort((a, b) => b.count - a.count);
 
-    filters.concern = await Promise.all(
-      concernAgg.map(async (c) => {
-        const doc = await Concern.findById(c.id).lean();
-        return doc ? { value: doc.name, count: c.count } : null;
-      })
-    ).then(arr => arr.filter(Boolean).sort((a, b) => b.count - a.count));
+    // ✅ Product images & category name
+    products.forEach((product) => {
+      // product.product_images = product.product_images?.length
+      //   ? product.product_images.map((img, index) => ({
+      //       image: img.url || img,
+      //       sortOrder: img.sortOrder || index + 1,
+      //     }))
+      //   : [];
+      product.category_name = categoryName;
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+    });
     const cleanedFilters = cleanFilters(filters);
-    //console.log(cleanedFilters);
-    // ✅ Response
     res.status(200).json({
       pagination: {
         totalItems,
@@ -1230,7 +1249,7 @@ if (req.query.sortBy) {
         itemsPerPage: pageSize,
       },
       products,
-      catadata: category,
+      catadata: Categorys,
       filters: cleanedFilters,
       allowedSortFields,
     });
@@ -1249,34 +1268,41 @@ export const subcategoryProducts = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const pageSize = parseInt(req.query.pageSize) || 30;
     const sortBy = req.query.sortBy || "ranking";
-    const slug = req.params.slug;
+    const slugName = req.params.slug;
 
     if (!allowedSortFields.includes(sortBy)) {
-      return res
-        .status(400)
-        .json({ error: `Invalid sortBy parameter '${sortBy}'` });
+      return res.status(400).json({ error: "Invalid sortBy parameter" });
     }
-
     // const sortValue = await sortByValue(sortBy);
 
-    // ✅ Find the subcategory
-    const subCategory = await SubCategory.findOne({ slug }).lean();
-    if (!subCategory) return res.status(404).json({ error: "Subcategory not found" });
+    // ✅ Find sub-sub-category by slug
+    const subSubCategory = await SubCategory.findOne({ slug: slugName }).lean();
+    if (!subSubCategory) {
+      return res.status(404).json({ error: "Sub-sub-category not found" });
+    }
+    const subsub_id = subSubCategory.id;
 
-    // ✅ Fetch category name
-    const categoryDoc = await Category.findOne({ id: subCategory.category_id }).lean();
-    const categoryName = categoryDoc ? categoryDoc.name : null;
+    // ✅ Fetch category name using category_id inside SubSubCategory
+    let categoryName = null;
+    // if (subSubCategory.category_id) {
+    //   const categoryDoc = await Category.findOne({ id: subSubCategory.category_id }).lean();
+    //   categoryName = categoryDoc ? categoryDoc.name : null;
+    // }
 
-    // ✅ Base query
+    // ✅ Dynamic Filters
     const andConditions = [
+      { sub_category_id: subsub_id },
       { status: "Active" },
-      { sub_category_id: subCategory.id },
     ];
 
-    // ✅ Dynamic filters
+    const filterFields = [
+      "spf", "size_chart_type", "colours", "flavours",
+      "protein_type", "formulation", "staging", "skin_type", "hair_type"
+    ];
+
     if (req.query.brand) {
       const brands = await Brand.find({ name: { $in: req.query.brand.split(",") } }).lean();
-      const brandIds = brands.map((b) => b.id);
+      const brandIds = brands.map(b => b.id);
       if (brandIds.length) andConditions.push({ brand: { $in: brandIds } });
     }
 
@@ -1291,18 +1317,17 @@ export const subcategoryProducts = async (req, res) => {
       });
     }
 
-    if (req.query.concern_1) {
-      const concerns = await Concern.find({ name: { $in: req.query.concern_1.split(",") } }).lean();
-      const concernIds = concerns.map((c) => c.id);
-      if (concernIds.length) {
-        andConditions.push({
-          $or: [
-            { concern_1: { $in: concernIds } },
-            { concern_2: { $in: concernIds } },
-            { concern_3: { $in: concernIds } },
-          ],
-        });
-      }
+    if (req.query.concern) {
+      const concernNames = req.query.concern.split(",");
+      const concernDocs = await Concern.find({ name: { $in: concernNames } }).lean();
+      const concernIds = concernDocs.map(c => c.id);
+      andConditions.push({
+        $or: [
+          { concern_1: { $in: concernIds } },
+          { concern_2: { $in: concernIds } },
+          { concern_3: { $in: concernIds } },
+        ],
+      });
     }
 
     if (req.query.minPrice || req.query.maxPrice) {
@@ -1312,24 +1337,18 @@ export const subcategoryProducts = async (req, res) => {
       andConditions.push({ final_price: priceCond });
     }
 
+        // ✅ Dynamic filter conditions
+for (const field of filterFields) {
+  if (req.query[field]) {
+    const values = req.query[field].split(",");
+    andConditions.push({ [field]: { $in: values } });
+  }
+}
+
     const finalQuery = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
 
-    // ✅ Total products
     const totalItems = await Product.countDocuments(finalQuery);
-
-    // ✅ Get products
-    // const products = await Product.find(finalQuery)
-    //   .populate("brand", "name")
-    //   .populate("category_id", "name slug")
-    //   .populate("sub_category_id", "name slug")
-    //   .populate("sub_sub_category_id", "name slug")
-    //   .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
-    //   .sort(sortValue)
-    //   .skip((page - 1) * pageSize)
-    //   .limit(pageSize)
-    //   .lean();
-
-    let sortValue = {};
+        let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
   sortValue[field] = order === "desc" ? -1 : 1;
@@ -1337,7 +1356,19 @@ if (req.query.sortBy) {
   sortValue = { ranking: 1 }; // default
 }
 
-        const products = await Product.aggregate([
+    // const products = await Product.find(finalQuery)
+    //   .populate("brand", "name")
+    //   .populate("category_id", "name slug")
+    //   .populate("sub_category_id", "name slug")
+    //   .populate("sub_sub_category_id", "name slug")
+    //   .populate("sub_sub_sub_category_id", "name slug")
+    //   .sort(sortValue)
+    //   .skip((page - 1) * pageSize)
+    //   .limit(pageSize)
+    //   .lean();
+
+
+            const products = await Product.aggregate([
   //  Filter (same as find)
   { $match: finalQuery },
 
@@ -1368,78 +1399,43 @@ if (req.query.sortBy) {
 
 ]);
 
-
-    const productIds = products.map((p) => p.product_id);
-
-    // ✅ Attach reviews
-    const reviews = await ProductReview.find({
-      productid: { $in: productIds },
-      status: "Approved",
-    }).lean();
-
-    const reviewsByProductId = {};
-    for (const review of reviews) {
-      const pid = review.productid.toString();
-      if (!reviewsByProductId[pid]) reviewsByProductId[pid] = [];
-      reviewsByProductId[pid].push(review);
-    }
-
-    products.forEach((product) => {
-      // product.product_images = product.product_images?.length
-      //   ? [product.product_images[0]]
-      //   : [];
-      product.product_reviews = reviewsByProductId[product._id.toString()] || [];
-      product.category_name = categoryName;
-            product.brand_name = product?.brand?.name ? product.brand.name : "";
-      product.brand = product?.brand?.id ? product.brand.id : "";
-
-    });
-
     // ✅ Filters
     const filters = {};
 
-    // Brand filter
+    // 🔹 Brand filter (return brand names only, remove nulls)
     const brandAgg = await Product.aggregate([
-      { $match: { sub_category_id: subCategory.id, status: "Active" } },
+      { $match: { sub_category_id: subsub_id, status: "Active" } },
       { $group: { _id: "$brand", count: { $sum: 1 } } },
-      { $match: { _id: { $ne: null } } },
+      { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
     ]);
-    filters.brand = await Promise.all(
-      brandAgg.map(async (b) => {
-        const doc = await Brand.findById(b.id).lean();
-        return doc ? { value: doc.name, count: b.count } : null;
-      })
-    ).then((arr) => arr.filter(Boolean).sort((a, b) => b.count - a.count));
+    const brandIds = brandAgg.map(b => b._id);
+    const brandDocs = await Brand.find({ id: { $in: brandIds } }).lean();
+    const brandMap = brandDocs.reduce((acc, b) => {
+      acc[b.id] = b.name;
+      return acc;
+    }, {});
+    filters.brand = brandAgg
+      .map(b => ({ value: brandMap[b._id] || null, count: b.count }))
+      .filter(b => b.value) // 🚀 remove null values
+      .sort((a, b) => b.count - a.count);
 
-    // Simple fields
-    const filterFields = [
-      "spf",
-      "size_chart_type",
-      "colours",
-      "flavours",
-      "protein_type",
-      "formulation",
-      "staging",
-      "skin_type",
-      "hair_type",
-    ];
+
     for (const field of filterFields) {
       const result = await Product.aggregate([
-        { $match: { sub_category_id: subCategory.id, status: "Active" } },
+        { $match: { sub_category_id: subsub_id, status: "Active" } },
         { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-        { $match: { _id: { $nin: [null, "", "undefined", "null"] } } },
+        { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
       ]);
       if (result.length) {
         filters[field] = result
-          .map((r) => ({ value: r._id, count: r.count }))
-          .filter(f => f.value) // ✅ remove null values
+          .map(r => ({ value: r._id, count: r.count }))
           .sort((a, b) => b.count - a.count);
       }
     }
 
-    // Preferences filter
+    // 🔹 Preference filter (remove nulls)
     const prefAgg = await Product.aggregate([
-      { $match: { sub_category_id: subCategory.id, status: "Active" } },
+      { $match: { sub_category_id: subsub_id, status: "Active" } },
       {
         $project: {
           prefs: {
@@ -1452,17 +1448,16 @@ if (req.query.sortBy) {
         },
       },
       { $unwind: "$prefs" },
-      { $match: { prefs: { $nin: [null, "", "undefined", "null"] } } },
+      { $match: { prefs: { $nin: [null, "", "null", "undefined"] } } },
       { $group: { _id: "$prefs", count: { $sum: 1 } } },
     ]);
     filters.preference = prefAgg
-      .map((p) => ({ value: p._id, count: p.count }))
-      .filter(f => f.value) // ✅ remove null values
+      .map(p => ({ value: p._id, count: p.count }))
       .sort((a, b) => b.count - a.count);
 
-    // Concern filter
+    // 🔹 Concern filter (map IDs → names, remove nulls)
     const concernAgg = await Product.aggregate([
-      { $match: { sub_category_id: subCategory.id, status: "Active" } },
+      { $match: { sub_category_id: subsub_id, status: "Active" } },
       {
         $project: {
           concerns: {
@@ -1475,18 +1470,33 @@ if (req.query.sortBy) {
         },
       },
       { $unwind: "$concerns" },
-      { $match: { concerns: { $nin: [null, "", "undefined", "null"] } } },
+      { $match: { concerns: { $nin: [null, "", "null", "undefined"] } } },
       { $group: { _id: "$concerns", count: { $sum: 1 } } },
     ]);
-    filters.concern = await Promise.all(
-      concernAgg.map(async (c) => {
-        const doc = await Concern.findById(c.id).lean();
-        return doc ? { value: doc.name, count: c.count } : null;
-      })
-    ).then((arr) => arr.filter(Boolean).sort((a, b) => b.count - a.count));
+    const concernIds = concernAgg.map(c => c.id);
+    const concernDocs = await Concern.find({ id: { $in: concernIds } }).lean();
+    const concernMap = concernDocs.reduce((acc, c) => {
+      acc[c.id] = c.name;
+      return acc;
+    }, {});
+    filters.concern = concernAgg
+      .map(c => ({ value: concernMap[c.id] || null, count: c.count }))
+      .filter(c => c.value) // 🚀 remove null values
+      .sort((a, b) => b.count - a.count);
 
+    // ✅ Product images & category name
+    products.forEach((product) => {
+      // product.product_images = product.product_images?.length
+      //   ? product.product_images.map((img, index) => ({
+      //       image: img.url || img,
+      //       sortOrder: img.sortOrder || index + 1,
+      //     }))
+      //   : [];
+      product.category_name = categoryName;
+      product.brand_name = product?.brand?.name ? product.brand.name : "";
+      product.brand = product?.brand?.id ? product.brand.id : "";
+    });
     const cleanedFilters = cleanFilters(filters);
-    // ✅ Response
     res.status(200).json({
       pagination: {
         totalItems,
@@ -1495,12 +1505,12 @@ if (req.query.sortBy) {
         itemsPerPage: pageSize,
       },
       products,
-      catadata: subCategory,
+      catadata: subSubCategory,
       filters: cleanedFilters,
       allowedSortFields,
     });
-  } catch (error) {
-    console.error("Error in /subcategory-products/:slug:", error);
+  } catch (err) {
+    console.error("Error in /subsubcategory-products/:slug:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -1540,6 +1550,12 @@ export const subSubCategoryProducts = async (req, res) => {
       { status: "Active" },
     ];
 
+    const filterFields = [
+      "spf", "size_chart_type", "colours", "flavours",
+      "protein_type", "formulation", "staging", "skin_type", "hair_type"
+    ];
+
+
     if (req.query.brand) {
       const brands = await Brand.find({ name: { $in: req.query.brand.split(",") } }).lean();
       const brandIds = brands.map(b => b.id);
@@ -1576,6 +1592,14 @@ export const subSubCategoryProducts = async (req, res) => {
       if (req.query.maxPrice) priceCond.$lte = parseFloat(req.query.maxPrice);
       andConditions.push({ final_price: priceCond });
     }
+
+        // ✅ Dynamic filter conditions
+for (const field of filterFields) {
+  if (req.query[field]) {
+    const values = req.query[field].split(",");
+    andConditions.push({ [field]: { $in: values } });
+  }
+}
 
     const finalQuery = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
 
@@ -1651,11 +1675,6 @@ if (req.query.sortBy) {
       .filter(b => b.value) // 🚀 remove null values
       .sort((a, b) => b.count - a.count);
 
-    // 🔹 Simple filter fields (remove nulls)
-    const filterFields = [
-      "spf", "size_chart_type", "colours", "flavours",
-      "protein_type", "formulation", "staging", "skin_type", "hair_type"
-    ];
     for (const field of filterFields) {
       const result = await Product.aggregate([
         { $match: { sub_sub_category_id: subsub_id, status: "Active" } },
@@ -1754,235 +1773,765 @@ if (req.query.sortBy) {
 
 
 export const concernProducts = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 30;
-    const sortBy = req.query.sortBy || "ranking";
-    const slug = req.params.slug;
+//   try {
+//     const page = parseInt(req.query.page) || 1;
+//     const pageSize = parseInt(req.query.pageSize) || 30;
+//     const sortBy = req.query.sortBy || "ranking";
+//     const slug = req.params.slug;
 
-    if (!allowedSortFields.includes(sortBy)) {
-      return res.status(400).json({ error: `Invalid sortBy parameter '${sortBy}'` });
-    }
+//     if (!allowedSortFields.includes(sortBy)) {
+//       return res.status(400).json({ error: `Invalid sortBy parameter '${sortBy}'` });
+//     }
 
-    const sortOptions = {};
-    sortOptions[sortBy] = sortBy === "vendor_article_name" ? 1 : -1;
-    // const sortValue = await sortByValue(sortBy);
+//     const sortOptions = {};
+//     sortOptions[sortBy] = sortBy === "vendor_article_name" ? 1 : -1;
+//     // const sortValue = await sortByValue(sortBy);
 
-    // Find concern ID by slug
-    const concern = await Concern.findOne({ slug });
-    if (!concern) {
-      return res.status(404).json({ error: "Concern not found" });
-    }
+//     // Find concern ID by slug
+//     const concern = await Concern.findOne({ slug });
+//     if (!concern) {
+//       return res.status(404).json({ error: "Concern not found" });
+//     }
 
-    // Base query for concern only (used for filters)
-    const baseQuery = {
-      status: "Active",
+//     // Base query for concern only (used for filters)
+//     const baseQuery = {
+//       status: "Active",
+//       $or: [
+//         { concern_1: concern.id },
+//         { concern_2: concern.id },
+//         { concern_3: concern.id },
+//       ],
+//     };
+
+//     // Actual query with filters applied
+//     const query = { ...baseQuery };
+
+//     // Apply dynamic filters
+//     const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
+//     for (const key of Object.keys(req.query)) {
+//       if (!ignoredKeys.includes(key)) {
+//         if (key === "brand") {
+//           const brandNames = req.query.brand.split(",");
+//           const brandDocs = await Brand.find({ name: { $in: brandNames } });
+//           const brandIds = brandDocs.map((b) => b.id);
+//           query.brand = { $in: brandIds };
+//         } else if (key === "minPrice") {
+//           query.final_price = { ...(query.final_price || {}), $gte: parseFloat(req.query[key]) };
+//         } else if (key === "maxPrice") {
+//           query.final_price = { ...(query.final_price || {}), $lte: parseFloat(req.query[key]) };
+//         } else if (key === "min_age_years") {
+//           const ageRange = decodeURIComponent(req.query[key]);
+//           const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
+//           if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
+//           if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
+//         } else {
+//           let keys = req.query[key].split(",");
+//           query[key] = { $in: keys };
+//         }
+//       }
+//     }
+
+//     // Fetch products
+//     const totalItems = await Product.countDocuments(query);
+
+// let sortValue = {};
+// if (req.query.sortBy) {
+//   const [field, order] = req.query.sortBy.split(" ");
+//   sortValue[field] = order === "desc" ? -1 : 1;
+// } else {
+//   sortValue = { ranking: 1 }; // default
+// }
+
+//     // const products = await Product.find(query)
+//     //   .populate("brand", "name")
+//     //   .populate("category_id", "name slug")
+//     //   .populate("sub_category_id", "name slug")
+//     //   .populate("sub_sub_category_id", "name slug")
+//     //   .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
+//     //   .sort(sortValue)
+//     //   .skip((page - 1) * pageSize)
+//     //   .limit(pageSize)
+//     //   .lean();
+
+//   const products = await Product.aggregate([
+//   //  Filter (same as find)
+//   { $match: query },
+
+//   // Join with brands collection (LEFT JOIN)
+//   {
+//     $lookup: {
+//       from: "brands",             // name of the Brand collection
+//       localField: "brand",        // field in Product
+//       foreignField: "id",        // field in Brand
+//       as: "brand"                 // output field name
+//     }
+//   },
+
+//   // Unwind to turn the joined brand array into an object
+//   {
+//     $unwind: {
+//       path: "$brand",
+//       preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+//     }
+//   },
+
+//   // Sort (same as .sort(sortValue))
+//   { $sort: sortValue },
+
+//   // Pagination (same as skip + limit)
+//   { $skip: (page - 1) * pageSize },
+//   { $limit: pageSize },
+
+// ]);
+
+
+
+//     const productIds = products.map((p) => p.id);
+//     const reviews = await ProductReview.find({
+//       productid: { $in: productIds },
+//       status: "Approved"
+//     }).lean();
+
+//     const reviewsByProductId = {};
+//     for (const review of reviews) {
+//       const pid = review.productId;
+//       if (!reviewsByProductId[pid]) reviewsByProductId[pid] = [];
+//       reviewsByProductId[pid].push(review);
+//     }
+
+//     products.forEach((product) => {
+//       product.product_images = product.product_images?.length ? [product.product_images[0]] : [];
+//       product.product_reviews = reviewsByProductId[product._id.toString()] || [];
+//       product.brand_name = product?.brand?.name ? product.brand.name : "";
+//       product.brand = product?.brand?.id ? product.brand.id : "";
+
+//     });
+
+//     // Build filters from baseQuery (null/undefined removed)
+//     const filterFields = [
+//       "brand",
+//       "skin_type",
+//       "spf",
+//       "size_chart_type",
+//       "colours",
+//       "flavours",
+//       "protein_type",
+//       "diaper_style",
+//       "formulation",
+//       "staging",
+//       "min_age_years",
+//     ];
+//     const filters = {};
+
+//     for (const field of filterFields) {
+//       if (field === "brand") {
+//         const result = await Product.aggregate([
+//           { $match: baseQuery },
+//           { $group: { _id: "$brand", count: { $sum: 1 } } },
+//           {
+//             $lookup: {
+//               from: "brands",
+//               localField: "_id",
+//               foreignField: "id",
+//               as: "brandInfo",
+//             },
+//           },
+//           { $unwind: "$brandInfo" },
+//           {
+//             $project: {
+//               value: "$brandInfo.name",
+//               count: 1,
+//             },
+//           },
+//           { $match: { value: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
+//         ]);
+//         filters[field] = result;
+//       } else if (field === "min_age_years") {
+//         const result = await Product.aggregate([
+//           { $match: baseQuery },
+//           {
+//             $group: {
+//               _id: { min: "$min_age_years", max: "$max_age_years" },
+//               count: { $sum: 1 },
+//             },
+//           },
+//           { $match: { "_id.min": { $ne: null }, "_id.max": { $ne: null } } }, // remove nulls
+//         ]);
+//         filters[field] = result.map((r) => ({
+//           value: `${r._id.min} to ${r._id.max}`,
+//           count: r.count,
+//         }));
+//       } else {
+//         const result = await Product.aggregate([
+//           { $match: baseQuery },
+//           { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+//           { $match: { _id: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
+//         ]);
+//         filters[field] = result.map((r) => ({ value: r._id, count: r.count }));
+//       }
+//     }
+
+//     // Concern-related popups
+//     const popups = await Popup.find({
+//       status: "Active",
+//       concern: { $in: [concern.id] },
+//     }).limit(1).lean();
+//     const cleanedFilters = cleanFilters(filters);
+
+//     const sortedData = Object.fromEntries(
+//        Object.entries(cleanedFilters).map(([key, arr]) => [
+//        key,
+//        [...arr].sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }))
+//     ])
+//     );
+
+//     res.status(200).json({
+//       pagination: {
+//         totalItems,
+//         totalPages: Math.ceil(totalItems / pageSize),
+//         currentPage: page,
+//         itemsPerPage: pageSize,
+//       },
+//       products,
+//       catadata: concern,
+//       filters: sortedData,
+//       allowedSortFields,
+//       popups,
+//     });
+//   } catch (error) {
+//     console.error("Error in concernProducts:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+
+//  try {
+//     const page = parseInt(req.query.page) || 1;
+//     const pageSize = parseInt(req.query.pageSize) || 30;
+//     const sortBy = req.query.sortBy || "ranking";
+//     const slugName = req.params.slug;
+
+//     if (!allowedSortFields.includes(sortBy)) {
+//       return res.status(400).json({ error: "Invalid sortBy parameter" });
+//     }
+
+//     console.log("000000000")
+//     // const sortValue = await sortByValue(sortBy);
+
+//     // // ✅ Find sub-sub-category by slug
+//     // const subSubCategory = await SubSubCategory.findOne({ slug: slugName }).lean();
+//     // if (!subSubCategory) {
+//     //   return res.status(404).json({ error: "Sub-sub-category not found" });
+//     // }
+
+//     console.log("88888888888888888888")
+//    const subSubCategory = await Concern.findOne({ slugName });
+//     if (!subSubCategory) {
+//       return res.status(404).json({ error: "Concern not found" });
+//     }
+
+//     console.log(subSubCategory, "subSubCategory")
+
+//     const concern_id = subSubCategory.id;
+
+//     // ✅ Fetch category name using category_id inside SubSubCategory
+//     let categoryName = null;
+//     // if (subSubCategory.category_id) {
+//     //   const categoryDoc = await Category.findOne({ id: subSubCategory.category_id }).lean();
+//     //   categoryName = categoryDoc ? categoryDoc.name : null;
+//     // }
+
+//     // ✅ Dynamic Filters
+//     // const andConditions = {
+//     //   status: "Active",
+//     //   $or: [
+//     //     { concern_1: concern_id },
+//     //     { concern_2: concern_id },
+//     //     { concern_3: concern_id },
+//     //   ],
+//     // };
+
+//     const andConditions = [
+//       { $or: [
+//         { concern_1: concern_id },
+//         { concern_2: concern_id },
+//         { concern_3: concern_id },
+//       ]},
+//       { status: "Active" },
+//     ];
+
+
+//     const filterFields = [
+//       "spf", "size_chart_type", "colours", "flavours",
+//       "protein_type", "formulation", "staging", "skin_type", "hair_type"
+//     ];
+
+
+//     if (req.query.brand) {
+//       const brands = await Brand.find({ name: { $in: req.query.brand.split(",") } }).lean();
+//       const brandIds = brands.map(b => b.id);
+//       if (brandIds.length) andConditions.push({ brand: { $in: brandIds } });
+//     }
+
+//     if (req.query.preference) {
+//       const prefNames = req.query.preference.split(",");
+//       andConditions.push({
+//         $or: [
+//           { preference: { $in: prefNames } },
+//           { preference_2: { $in: prefNames } },
+//           { preference_3: { $in: prefNames } },
+//         ],
+//       });
+//     }
+
+//     // if (req.query.concern) {
+//     //   const concernNames = req.query.concern.split(",");
+//     //   const concernDocs = await Concern.find({ name: { $in: concernNames } }).lean();
+//     //   const concernIds = concernDocs.map(c => c.id);
+//     //   andConditions.push({
+//     //     $or: [
+//     //       { concern_1: { $in: concernIds } },
+//     //       { concern_2: { $in: concernIds } },
+//     //       { concern_3: { $in: concernIds } },
+//     //     ],
+//     //   });
+//     // }
+
+//     if (req.query.minPrice || req.query.maxPrice) {
+//       const priceCond = {};
+//       if (req.query.minPrice) priceCond.$gte = parseFloat(req.query.minPrice);
+//       if (req.query.maxPrice) priceCond.$lte = parseFloat(req.query.maxPrice);
+//       andConditions.push({ final_price: priceCond });
+//     }
+
+//         // ✅ Dynamic filter conditions
+// for (const field of filterFields) {
+//   if (req.query[field]) {
+//     const values = req.query[field].split(",");
+//     andConditions.push({ [field]: { $in: values } });
+//   }
+// }
+
+//     const finalQuery = andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
+
+//     const totalItems = await Product.countDocuments(finalQuery);
+//     console.log("totalItems=======", totalItems)
+//         let sortValue = {};
+// if (req.query.sortBy) {
+//   const [field, order] = req.query.sortBy.split(" ");
+//   sortValue[field] = order === "desc" ? -1 : 1;
+// } else {
+//   sortValue = { ranking: 1 }; // default
+// }
+
+//     // const products = await Product.find(finalQuery)
+//     //   .populate("brand", "name")
+//     //   .populate("category_id", "name slug")
+//     //   .populate("sub_category_id", "name slug")
+//     //   .populate("sub_sub_category_id", "name slug")
+//     //   .populate("sub_sub_sub_category_id", "name slug")
+//     //   .sort(sortValue)
+//     //   .skip((page - 1) * pageSize)
+//     //   .limit(pageSize)
+//     //   .lean();
+
+
+//             const products = await Product.aggregate([
+//   //  Filter (same as find)
+//   { $match: finalQuery },
+
+//   // Join with brands collection (LEFT JOIN)
+//   {
+//     $lookup: {
+//       from: "brands",             // name of the Brand collection
+//       localField: "brand",        // field in Product
+//       foreignField: "id",        // field in Brand
+//       as: "brand"                 // output field name
+//     }
+//   },
+
+//   // Unwind to turn the joined brand array into an object
+//   {
+//     $unwind: {
+//       path: "$brand",
+//       preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+//     }
+//   },
+
+//   // Sort (same as .sort(sortValue))
+//   { $sort: sortValue },
+
+//   // Pagination (same as skip + limit)
+//   { $skip: (page - 1) * pageSize },
+//   { $limit: pageSize },
+
+// ]);
+
+//     // ✅ Filters
+//     const filters = {};
+
+//     // 🔹 Brand filter (return brand names only, remove nulls)
+//     const brandAgg = await Product.aggregate([
+//       { $match: { 
+//       status: "Active",
+//       $or: [
+//         { concern_1: concern_id },
+//         { concern_2: concern_id },
+//         { concern_3: concern_id },
+//       ],
+//     } },
+//       { $group: { _id: "$brand", count: { $sum: 1 } } },
+//       { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
+//     ]);
+//     const brandIds = brandAgg.map(b => b._id);
+//     const brandDocs = await Brand.find({ id: { $in: brandIds } }).lean();
+//     const brandMap = brandDocs.reduce((acc, b) => {
+//       acc[b.id] = b.name;
+//       return acc;
+//     }, {});
+//     filters.brand = brandAgg
+//       .map(b => ({ value: brandMap[b._id] || null, count: b.count }))
+//       .filter(b => b.value) // 🚀 remove null values
+//       .sort((a, b) => b.count - a.count);
+
+//     for (const field of filterFields) {
+//       const result = await Product.aggregate([
+//       { $match: { 
+//       status: "Active",
+//       $or: [
+//         { concern_1: concern_id },
+//         { concern_2: concern_id },
+//         { concern_3: concern_id },
+//       ],
+//     } },
+//         { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+//         { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
+//       ]);
+//       if (result.length) {
+//         filters[field] = result
+//           .map(r => ({ value: r._id, count: r.count }))
+//           .sort((a, b) => b.count - a.count);
+//       }
+//     }
+
+//     // 🔹 Preference filter (remove nulls)
+//     const prefAgg = await Product.aggregate([
+//       { $match: { 
+//       status: "Active",
+//       $or: [
+//         { concern_1: concern_id },
+//         { concern_2: concern_id },
+//         { concern_3: concern_id },
+//       ],
+//     } },
+//       {
+//         $project: {
+//           prefs: {
+//             $setUnion: [
+//               [{ $ifNull: ["$preference", null] }],
+//               [{ $ifNull: ["$preference_2", null] }],
+//               [{ $ifNull: ["$preference_3", null] }],
+//             ],
+//           },
+//         },
+//       },
+//       { $unwind: "$prefs" },
+//       { $match: { prefs: { $nin: [null, "", "null", "undefined"] } } },
+//       { $group: { _id: "$prefs", count: { $sum: 1 } } },
+//     ]);
+//     filters.preference = prefAgg
+//       .map(p => ({ value: p._id, count: p.count }))
+//       .sort((a, b) => b.count - a.count);
+
+//     // 🔹 Concern filter (map IDs → names, remove nulls)
+//     // const concernAgg = await Product.aggregate([
+//     //   { $match: { sub_sub_category_id: subsub_id, status: "Active" } },
+//     //   {
+//     //     $project: {
+//     //       concerns: {
+//     //         $setUnion: [
+//     //           [{ $ifNull: ["$concern_1", null] }],
+//     //           [{ $ifNull: ["$concern_2", null] }],
+//     //           [{ $ifNull: ["$concern_3", null] }],
+//     //         ],
+//     //       },
+//     //     },
+//     //   },
+//     //   { $unwind: "$concerns" },
+//     //   { $match: { concerns: { $nin: [null, "", "null", "undefined"] } } },
+//     //   { $group: { _id: "$concerns", count: { $sum: 1 } } },
+//     // ]);
+//     // const concernIds = concernAgg.map(c => c.id);
+//     // const concernDocs = await Concern.find({ id: { $in: concernIds } }).lean();
+//     // const concernMap = concernDocs.reduce((acc, c) => {
+//     //   acc[c.id] = c.name;
+//     //   return acc;
+//     // }, {});
+//     // filters.concern = concernAgg
+//     //   .map(c => ({ value: concernMap[c.id] || null, count: c.count }))
+//     //   .filter(c => c.value) // 🚀 remove null values
+//     //   .sort((a, b) => b.count - a.count);
+
+//     // ✅ Product images & category name
+//     products.forEach((product) => {
+//       // product.product_images = product.product_images?.length
+//       //   ? product.product_images.map((img, index) => ({
+//       //       image: img.url || img,
+//       //       sortOrder: img.sortOrder || index + 1,
+//       //     }))
+//       //   : [];
+//       product.category_name = categoryName;
+//       product.brand_name = product?.brand?.name ? product.brand.name : "";
+//       product.brand = product?.brand?.id ? product.brand.id : "";
+//     });
+//     const cleanedFilters = cleanFilters(filters);
+//     res.status(200).json({
+//       pagination: {
+//         totalItems,
+//         totalPages: Math.ceil(totalItems / pageSize),
+//         currentPage: page,
+//         itemsPerPage: pageSize,
+//       },
+//       products,
+//       catadata: subSubCategory,
+//       filters: cleanedFilters,
+//       allowedSortFields,
+//     });
+//   } catch (err) {
+//     console.error("Error in /concern-products/:slug:", err);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+try {
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 30;
+  const sortBy = req.query.sortBy || "ranking";
+  const slugName = req.params.slug;
+
+  const allowedSortFields = ["ranking", "price", "final_price", "discount"]; // ✅ define this if not defined above
+  if (!allowedSortFields.includes(sortBy.split(" ")[0])) {
+    return res.status(400).json({ error: "Invalid sortBy parameter" });
+  }
+
+  console.log("Fetching concern by slug:", slugName);
+
+  // ✅ FIX #1: Correct findOne query for Concern
+  const subSubCategory = await Concern.findOne({ slug: slugName }).lean();
+  if (!subSubCategory) {
+    return res.status(404).json({ error: "Concern not found" });
+  }
+
+  console.log("Concern found:", subSubCategory);
+
+  const concern_id = subSubCategory.id;
+
+  // ✅ Filters setup
+  const andConditions = [
+    {
       $or: [
-        { concern_1: concern.id },
-        { concern_2: concern.id },
-        { concern_3: concern.id },
+        { concern_1: concern_id },
+        { concern_2: concern_id },
+        { concern_3: concern_id },
       ],
-    };
+    },
+    { status: "Active" },
+  ];
 
-    // Actual query with filters applied
-    const query = { ...baseQuery };
+  const filterFields = [
+    "spf",
+    "size_chart_type",
+    "colours",
+    "flavours",
+    "protein_type",
+    "formulation",
+    "staging",
+    "skin_type",
+    "hair_type",
+  ];
 
-    // Apply dynamic filters
-    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
-    for (const key of Object.keys(req.query)) {
-      if (!ignoredKeys.includes(key)) {
-        if (key === "brand") {
-          const brandNames = req.query.brand.split(",");
-          const brandDocs = await Brand.find({ name: { $in: brandNames } });
-          const brandIds = brandDocs.map((b) => b.id);
-          query.brand = { $in: brandIds };
-        } else if (key === "minPrice") {
-          query.final_price = { ...(query.final_price || {}), $gte: parseFloat(req.query[key]) };
-        } else if (key === "maxPrice") {
-          query.final_price = { ...(query.final_price || {}), $lte: parseFloat(req.query[key]) };
-        } else if (key === "min_age_years") {
-          const ageRange = decodeURIComponent(req.query[key]);
-          const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
-          if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
-          if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
-        } else {
-          let keys = req.query[key].split(",");
-          query[key] = { $in: keys };
-        }
-      }
+  // ✅ Brand filter
+  if (req.query.brand) {
+    const brands = await Brand.find({
+      name: { $in: req.query.brand.split(",") },
+    }).lean();
+    const brandIds = brands.map((b) => b.id);
+    if (brandIds.length) andConditions.push({ brand: { $in: brandIds } });
+  }
+
+  // ✅ Preference filter
+  if (req.query.preference) {
+    const prefNames = req.query.preference.split(",");
+    andConditions.push({
+      $or: [
+        { preference: { $in: prefNames } },
+        { preference_2: { $in: prefNames } },
+        { preference_3: { $in: prefNames } },
+      ],
+    });
+  }
+
+  // ✅ Price filter
+  if (req.query.minPrice || req.query.maxPrice) {
+    const priceCond = {};
+    if (req.query.minPrice) priceCond.$gte = parseFloat(req.query.minPrice);
+    if (req.query.maxPrice) priceCond.$lte = parseFloat(req.query.maxPrice);
+    andConditions.push({ final_price: priceCond });
+  }
+
+  // ✅ Dynamic filter fields
+  for (const field of filterFields) {
+    if (req.query[field]) {
+      const values = req.query[field].split(",");
+      andConditions.push({ [field]: { $in: values } });
     }
+  }
 
-    // Fetch products
-    const totalItems = await Product.countDocuments(query);
+  const finalQuery =
+    andConditions.length > 1 ? { $and: andConditions } : andConditions[0];
 
-let sortValue = {};
-if (req.query.sortBy) {
-  const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
-} else {
-  sortValue = { ranking: 1 }; // default
+
+  // ✅ Sort handling
+  let sortValue = {};
+  if (req.query.sortBy) {
+    const [field, order] = req.query.sortBy.split(" ");
+    sortValue[field] = order === "desc" ? -1 : 1;
+  } else {
+    sortValue = { ranking: 1 };
+  }
+
+  // ✅ Count total items
+  const totalItems = await Product.countDocuments(finalQuery);
+
+  // ✅ Main Product Query (Aggregation)
+  const products = await Product.aggregate([
+    { $match: finalQuery },
+    {
+      $lookup: {
+        from: "brands",
+        localField: "brand",
+        foreignField: "id",
+        as: "brand",
+      },
+    },
+    {
+      $unwind: {
+        path: "$brand",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    { $sort: sortValue },
+    { $skip: (page - 1) * pageSize },
+    { $limit: pageSize },
+  ]);
+
+  // ✅ Build Filters
+  const filters = {};
+
+  // ---- Brand Filter
+  const brandAgg = await Product.aggregate([
+    {
+      $match: {
+        status: "Active",
+        $or: [
+          { concern_1: concern_id },
+          { concern_2: concern_id },
+          { concern_3: concern_id },
+        ],
+      },
+    },
+    { $group: { _id: "$brand", count: { $sum: 1 } } },
+    { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
+  ]);
+
+  const brandIds = brandAgg.map((b) => b._id);
+  const brandDocs = await Brand.find({ id: { $in: brandIds } }).lean();
+  const brandMap = brandDocs.reduce((acc, b) => {
+    acc[b.id] = b.name;
+    return acc;
+  }, {});
+
+  filters.brand = brandAgg
+    .map((b) => ({ value: brandMap[b._id] || null, count: b.count }))
+    .filter((b) => b.value)
+    .sort((a, b) => b.count - a.count);
+
+  // ---- Dynamic field filters
+  for (const field of filterFields) {
+    const result = await Product.aggregate([
+      {
+        $match: {
+          status: "Active",
+          $or: [
+            { concern_1: concern_id },
+            { concern_2: concern_id },
+            { concern_3: concern_id },
+          ],
+        },
+      },
+      { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+      { $match: { _id: { $nin: [null, "", "null", "undefined"] } } },
+    ]);
+
+    if (result.length) {
+      filters[field] = result
+        .map((r) => ({ value: r._id, count: r.count }))
+        .sort((a, b) => b.count - a.count);
+    }
+  }
+
+  // ---- Preference Filter
+  const prefAgg = await Product.aggregate([
+    {
+      $match: {
+        status: "Active",
+        $or: [
+          { concern_1: concern_id },
+          { concern_2: concern_id },
+          { concern_3: concern_id },
+        ],
+      },
+    },
+    {
+      $project: {
+        prefs: {
+          $setUnion: [
+            [{ $ifNull: ["$preference", null] }],
+            [{ $ifNull: ["$preference_2", null] }],
+            [{ $ifNull: ["$preference_3", null] }],
+          ],
+        },
+      },
+    },
+    { $unwind: "$prefs" },
+    { $match: { prefs: { $nin: [null, "", "null", "undefined"] } } },
+    { $group: { _id: "$prefs", count: { $sum: 1 } } },
+  ]);
+
+  filters.preference = prefAgg
+    .map((p) => ({ value: p._id, count: p.count }))
+    .sort((a, b) => b.count - a.count);
+
+  // ✅ Cleanup product data
+  products.forEach((product) => {
+    product.brand_name = product?.brand?.name || "";
+    product.brand = product?.brand?.id || "";
+  });
+
+  // ✅ Response
+  res.status(200).json({
+    pagination: {
+      totalItems,
+      totalPages: Math.ceil(totalItems / pageSize),
+      currentPage: page,
+      itemsPerPage: pageSize,
+    },
+    products,
+    catadata: subSubCategory,
+    filters,
+    allowedSortFields,
+  });
+} catch (err) {
+  console.log("Error in /concern-products/:slug:", err);
+  res.status(500).json({ error: "Internal Server Error" });
 }
 
-    // const products = await Product.find(query)
-    //   .populate("brand", "name")
-    //   .populate("category_id", "name slug")
-    //   .populate("sub_category_id", "name slug")
-    //   .populate("sub_sub_category_id", "name slug")
-    //   .populate("sub_sub_sub_category_id", "sub_sub_sub_category_name slug")
-    //   .sort(sortValue)
-    //   .skip((page - 1) * pageSize)
-    //   .limit(pageSize)
-    //   .lean();
-
-  const products = await Product.aggregate([
-  //  Filter (same as find)
-  { $match: query },
-
-  // Join with brands collection (LEFT JOIN)
-  {
-    $lookup: {
-      from: "brands",             // name of the Brand collection
-      localField: "brand",        // field in Product
-      foreignField: "id",        // field in Brand
-      as: "brand"                 // output field name
-    }
-  },
-
-  // Unwind to turn the joined brand array into an object
-  {
-    $unwind: {
-      path: "$brand",
-      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
-    }
-  },
-
-  // Sort (same as .sort(sortValue))
-  { $sort: sortValue },
-
-  // Pagination (same as skip + limit)
-  { $skip: (page - 1) * pageSize },
-  { $limit: pageSize },
-
-]);
-
-
-
-    const productIds = products.map((p) => p.id);
-    const reviews = await ProductReview.find({
-      productid: { $in: productIds },
-      status: "Approved"
-    }).lean();
-
-    const reviewsByProductId = {};
-    for (const review of reviews) {
-      const pid = review.productId;
-      if (!reviewsByProductId[pid]) reviewsByProductId[pid] = [];
-      reviewsByProductId[pid].push(review);
-    }
-
-    products.forEach((product) => {
-      product.product_images = product.product_images?.length ? [product.product_images[0]] : [];
-      product.product_reviews = reviewsByProductId[product._id.toString()] || [];
-      product.brand_name = product?.brand?.name ? product.brand.name : "";
-      product.brand = product?.brand?.id ? product.brand.id : "";
-
-    });
-
-    // Build filters from baseQuery (null/undefined removed)
-    const filterFields = [
-      "brand",
-      "skin_type",
-      "spf",
-      "size_chart_type",
-      "colours",
-      "flavours",
-      "protein_type",
-      "diaper_style",
-      "formulation",
-      "staging",
-      "min_age_years",
-    ];
-    const filters = {};
-
-    for (const field of filterFields) {
-      if (field === "brand") {
-        const result = await Product.aggregate([
-          { $match: baseQuery },
-          { $group: { _id: "$brand", count: { $sum: 1 } } },
-          {
-            $lookup: {
-              from: "brands",
-              localField: "_id",
-              foreignField: "id",
-              as: "brandInfo",
-            },
-          },
-          { $unwind: "$brandInfo" },
-          {
-            $project: {
-              value: "$brandInfo.name",
-              count: 1,
-            },
-          },
-          { $match: { value: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
-        ]);
-        filters[field] = result;
-      } else if (field === "min_age_years") {
-        const result = await Product.aggregate([
-          { $match: baseQuery },
-          {
-            $group: {
-              _id: { min: "$min_age_years", max: "$max_age_years" },
-              count: { $sum: 1 },
-            },
-          },
-          { $match: { "_id.min": { $ne: null }, "_id.max": { $ne: null } } }, // remove nulls
-        ]);
-        filters[field] = result.map((r) => ({
-          value: `${r._id.min} to ${r._id.max}`,
-          count: r.count,
-        }));
-      } else {
-        const result = await Product.aggregate([
-          { $match: baseQuery },
-          { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-          { $match: { _id: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
-        ]);
-        filters[field] = result.map((r) => ({ value: r._id, count: r.count }));
-      }
-    }
-
-    // Concern-related popups
-    const popups = await Popup.find({
-      status: "Active",
-      concern: { $in: [concern.id] },
-    }).limit(1).lean();
-    const cleanedFilters = cleanFilters(filters);
-
-    const sortedData = Object.fromEntries(
-       Object.entries(cleanedFilters).map(([key, arr]) => [
-       key,
-       [...arr].sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }))
-    ])
-    );
-
-    res.status(200).json({
-      pagination: {
-        totalItems,
-        totalPages: Math.ceil(totalItems / pageSize),
-        currentPage: page,
-        itemsPerPage: pageSize,
-      },
-      products,
-      catadata: concern,
-      filters: sortedData,
-      allowedSortFields,
-      popups,
-    });
-  } catch (error) {
-    console.error("Error in concernProducts:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
 };
 
 
