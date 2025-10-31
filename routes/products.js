@@ -17,7 +17,8 @@ import {
   adminFetchProductById,
   getNewTopPics,
   getProductsByGroup,
-  getProducts
+  getProducts,
+  getSuggestedProducts
 } from "../controllers/productController.js";
 import * as schema from "../schema.js";
 import { validateProductData } from "../utils/common.js";
@@ -59,5 +60,6 @@ router.get("/new-top-pics", getNewTopPics);
 
 router.get("/products-by-group/:slug", getProductsByGroup);
 router.get("/products", getProducts);
+router.get("/related-products",getSuggestedProducts)
 
 export default router;

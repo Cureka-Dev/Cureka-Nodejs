@@ -9,7 +9,7 @@ const { isEmpty } = _;
 export const listAllArticalTypes = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 30;
+    const pageSize = parseInt(req.query.pageSize) || 300;
 
     const totalItems = await ArticalType.countDocuments();
     const results = await ArticalType.find()
