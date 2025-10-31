@@ -1,6 +1,7 @@
 import Concern from "../DB/models/concern.js";
 import kebabCase from "lodash/kebabCase.js";
 import NodeCache from "node-cache";
+import Product from "../DB/models/product.js";
 const cache = new NodeCache({ stdTTL: 300 }); // cache for 120 seconds
 
 // Create Concern
@@ -74,12 +75,38 @@ export const getAllConcerns = async (req, res) => {
     }
 
     const concerns = await Concern.find(filter);
+    console.log(concerns,"concerns");
+    // Get all concern IDs
+    const concernIds = concerns.map(c => c.id);
+    console.log(concernIds,"concernIds====");
+    
+    // Count products grouped by concern
+    const productCounts = await Product.aggregate([
+      { $match: { concern_1: { $in: concernIds } } },
+      { $group: { _id: "$concern_1", count: { $sum: 1 } } },
+    ]);
+    
+    console.log(productCounts,"productCounts");
+    const countMap = Object.fromEntries(productCounts.map(p => [p._id.toString(), p.count]));
+    console.log(countMap,"countMap");
+    
+    // 4️⃣ Attach count to each concern
+    const concernsWithCounts = concerns.map(c => ({
+      ...c.toObject(),
+      productCount: countMap[c.id?.toString()] || 0,
+    }));
+    console.log(concernsWithCounts,"concernsWithCounts");
+    // 5️⃣ Sort by product count descending
+    concernsWithCounts.sort((a, b) => b.productCount - a.productCount);
 
+    // console.log(concernsWithCounts,"concernsWithCounts");
+    
+    
     // 3️⃣ Save in cache
-    cache.set(cacheKey, concerns);
+    cache.set(cacheKey, concernsWithCounts);
 
     console.log("💾 Cached concerns for key:", cacheKey);
-    res.status(200).json({ status: true, data: concerns, cached: false });
+    res.status(200).json({ status: true, data: concernsWithCounts, cached: false });
   } catch (err) {
     res.status(500).json({ status: false, message: err.message });
   }

@@ -2028,12 +2028,20 @@ if (req.query.sortBy) {
     }).limit(1).lean();
     const cleanedFilters = cleanFilters(filters);
 
+    // const sortedData = Object.fromEntries(
+    //    Object.entries(cleanedFilters).map(([key, arr]) => [
+    //    key,
+    //    [...arr].sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }))
+    // ])
+    // );
     const sortedData = Object.fromEntries(
-       Object.entries(cleanedFilters).map(([key, arr]) => [
-       key,
-       [...arr].sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }))
-    ])
-    );
+  Object.entries(cleanedFilters).map(([key, arr]) => [
+    key,
+    [...arr].sort((a, b) =>
+      String(a?.value ?? '').localeCompare(String(b?.value ?? ''), 'en', { sensitivity: 'base' })
+    )
+  ])
+);
 
     res.status(200).json({
       pagination: {
