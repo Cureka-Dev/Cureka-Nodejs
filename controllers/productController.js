@@ -2718,48 +2718,76 @@ export const getProductsByGroup = async (req, res) => {
       match.max_age_years = { $gte: minAge };
     }
 
-    // ✅ dynamic filters
-    const dynamicFilters = Object.keys(req.query).filter(
-      (key) => !["page", "pageSize", "sortBy", "min", "max", "url"].includes(key)
-    );
+    let clone_match = JSON.parse(JSON.stringify(match));
 
-    dynamicFilters.forEach((key) => {
-      if (key === "brand") {
-        const brandIds = req.query[key]
-        .split(",")
-        .map((id) => parseInt(id))
-        .filter((id) => !isNaN(id));
-        if (brandIds.length > 0) {
+    // Apply dynamic filters
+    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term", "min", "max"];
+    for (const key of Object.keys(req.query)) {
+      if (!ignoredKeys.includes(key)) {
+        if (key === "brand") {
+          const brandNames = req.query.brand.split(",");
+          const brandDocs = await Brand.find({ name: { $in: brandNames } });
+          const brandIds = brandDocs.map((b) => b.id);
           match.brand = { $in: brandIds };
+        } else if (key === "minPrice") {
+          match.final_price = { ...(match.final_price || {}), $gte: parseFloat(req.query[key]) };
+        } else if (key === "maxPrice") {
+          match.final_price = { ...(match.final_price || {}), $lte: parseFloat(req.query[key]) };
+        } else if (key === "min_age_years") {
+          const ageRange = decodeURIComponent(req.query[key]);
+          const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
+          if (!isNaN(min)) match.min_age_years = { ...(match.min_age_years || {}), $gte: min };
+          if (!isNaN(max)) match.max_age_years = { ...(match.max_age_years || {}), $lte: max };
+        } else {
+          let keys = req.query[key].split(",");
+          match[key] = { $in: keys };
         }
-      } else if (key === "concern") {
-        const concernId = parseInt(req.query[key]);
-        match.$or = [
-          { concern_1: concernId },
-          { concern_2: concernId },
-          { concern_3: concernId },
-        ];
-      } else if (key === "preference") {
-        const prefId = parseInt(req.query[key]);
-        match.$or = [
-          { preference: prefId },
-          { preference_2: prefId },
-          { preference_3: prefId },
-        ];
-      } else if (key === "minPrice") {
-        match.final_price = {
-          ...(match.final_price || {}),
-          $gte: parseFloat(req.query[key]),
-        };
-      } else if (key === "maxPrice") {
-        match.final_price = {
-          ...(match.final_price || {}),
-          $lte: parseFloat(req.query[key]),
-        };
-      } else {
-        match[key] = req.query[key];
       }
-    });
+    }
+
+
+    // // ✅ dynamic filters
+    // const dynamicFilters = Object.keys(req.query).filter(
+    //   (key) => !["page", "pageSize", "sortBy", "min", "max", "url"].includes(key)
+    // );
+
+    // dynamicFilters.forEach((key) => {
+    //   if (key === "brand") {
+    //     const brandIds = req.query[key]
+    //     .split(",")
+    //     .map((id) => parseInt(id))
+    //     .filter((id) => !isNaN(id));
+    //     if (brandIds.length > 0) {
+    //       match.brand = { $in: brandIds };
+    //     }
+    //   } else if (key === "concern") {
+    //     const concernId = parseInt(req.query[key]);
+    //     match.$or = [
+    //       { concern_1: concernId },
+    //       { concern_2: concernId },
+    //       { concern_3: concernId },
+    //     ];
+    //   } else if (key === "preference") {
+    //     const prefId = parseInt(req.query[key]);
+    //     match.$or = [
+    //       { preference: prefId },
+    //       { preference_2: prefId },
+    //       { preference_3: prefId },
+    //     ];
+    //   } else if (key === "minPrice") {
+    //     match.final_price = {
+    //       ...(match.final_price || {}),
+    //       $gte: parseFloat(req.query[key]),
+    //     };
+    //   } else if (key === "maxPrice") {
+    //     match.final_price = {
+    //       ...(match.final_price || {}),
+    //       $lte: parseFloat(req.query[key]),
+    //     };
+    //   } else {
+    //     match[key] = req.query[key];
+    //   }
+    // });
 
     // ✅ sorting
     let sort = { ranking: 1 };
@@ -2859,84 +2887,70 @@ switch (req.query.sortBy) {
       { $limit: pageSize },
     ]);
 
-    // ✅ filters aggregation
-    const filtersAgg = await Product.aggregate([
-      { $match: match },
-      {
-        $facet: {
-          brand: [
-            {
-              $lookup: {
-                from: "brands",
-                localField: "brand",
-                foreignField: "id",
-                as: "brand",
-              },
-            },
-            { $unwind: "$brand" },
-            {
-              $group: {
-                _id: "$brand.id",
-                value: { $first: "$brand.name" },
-                count: { $sum: 1 },
-              },
-            },
-            { $project: { _id: 0, id: "$_id", value: 1, count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          spf: [
-            { $group: { _id: "$spf", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          size_chart_type: [
-            { $group: { _id: "$size_chart_type", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          colours: [
-            { $group: { _id: "$colours", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          flavours: [
-            { $group: { _id: "$flavours", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          protein_type: [
-            { $group: { _id: "$protein_type", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          formulation: [
-            { $group: { _id: "$formulation", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-          staging: [
-            { $group: { _id: "$staging", count: { $sum: 1 } } },
-            { $match: { _id: { $ne: null } } },
-            { $project: { _id: 0, value: "$_id", count: 1 } },
-            { $sort: { count: -1 } },
-          ],
-        },
-      },
-    ]);
+    // Build filters from baseQuery (null/undefined removed)
+    const filterFields = [
+      "brand",
+      "skin_type",
+      "spf",
+      "size_chart_type",
+      "colours",
+      "flavours",
+      "protein_type",
+      "diaper_style",
+      "formulation",
+      "staging",
+      "min_age_years",
+    ];
+    const filters = {};
 
-    // brand name sort by asc
-    const sortedBrand = filtersAgg[0]['brand'].sort((a, b) => 
-        a.value.toLowerCase().localeCompare(b.value.toLowerCase())
-    );
-    filtersAgg[0]['brand'] = sortedBrand;
-
-    const filters = filtersAgg[0];
+    for (const field of filterFields) {
+      if (field === "brand") {
+        const result = await Product.aggregate([
+          { $match: clone_match },
+          { $group: { _id: "$brand", count: { $sum: 1 } } },
+          {
+            $lookup: {
+              from: "brands",
+              localField: "_id",
+              foreignField: "id",
+              as: "brandInfo",
+            },
+          },
+          { $unwind: "$brandInfo" },
+          {
+            $project: {
+              value: "$brandInfo.name",
+              count: 1,
+            },
+          },
+          { $match: { value: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
+        ]);
+        filters[field] = result;
+      } else if (field === "min_age_years") {
+        const result = await Product.aggregate([
+          { $match: clone_match },
+          {
+            $group: {
+              _id: { min: "$min_age_years", max: "$max_age_years" },
+              count: { $sum: 1 },
+            },
+          },
+          { $match: { "_id.min": { $ne: null }, "_id.max": { $ne: null } } }, // remove nulls
+        ]);
+        filters[field] = result.map((r) => ({
+          value: `${r._id.min} to ${r._id.max}`,
+          count: r.count,
+        }));
+      } else {
+        const result = await Product.aggregate([
+          { $match: clone_match },
+          { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+          { $match: { _id: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
+        ]);
+        filters[field] = result.map((r) => ({ value: r._id, count: r.count }));
+      }
+    }
+    
     const allowedSortFields = [
       "ranking",
       "popularity",
