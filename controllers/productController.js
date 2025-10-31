@@ -983,8 +983,68 @@ export const productsSuggestions = async (req, res) => {
     // Search suggestions for brands and categories
     const brands = await Brand.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const categories = await Category.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    // const subcategories = await SubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
+    // const subsubcategories = await SubSubCategory.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const concerns = await Concern.find({ name: { $regex: `^${searchTerm}`, $options: "i" } }).limit(10);
     const cleanedFilters = cleanFilters(filters);
+
+  const subcategories = await SubCategory.aggregate([
+  { $match: { name: { $regex: `^${searchTerm}`, $options: "i" } } },
+  {
+    $lookup: {
+      from: "categories",             // name of the Brand collection
+      localField: "category_id",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "category"                 // output field name
+    }
+  },
+  {
+    $unwind: {
+      path: "$category",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  { $limit: 10}
+
+]);
+
+  const subsubcategories = await SubSubCategory.aggregate([
+  { $match: { name: { $regex: `^${searchTerm}`, $options: "i" } } },
+  {
+    $lookup: {
+      from: "categories",             // name of the Brand collection
+      localField: "category_id",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "category"                 // output field name
+    }
+  },
+  {
+    $unwind: {
+      path: "$category",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+    {
+    $lookup: {
+      from: "subcategories",             // name of the Brand collection
+      localField: "sub_category_id",        // field in Product
+      foreignField: "id",        // field in Brand
+      as: "subcategory"                 // output field name
+    }
+  },
+  {
+    $unwind: {
+      path: "$subcategory",
+      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+    }
+  },
+
+  { $limit: 10}
+
+]);
+
     res.status(200).json({
       pagination: {
         totalItems,
@@ -995,6 +1055,8 @@ export const productsSuggestions = async (req, res) => {
       products,
       brands,
       categories,
+      subcategories,
+      subsubcategories,
       concerns,
       filters: cleanedFilters,
       allowedSortFields,
