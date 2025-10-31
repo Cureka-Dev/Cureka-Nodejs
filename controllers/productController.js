@@ -478,6 +478,10 @@ export const getProductBySlug = async (req, res) => {
     // ✅ Normalize all FAQ fields dynamically into array
     let product_faq_array = [];
     Object.keys(product).forEach((key) => {
+      if( product[key] && typeof product[key] === "string"){
+        product[key] = product[key].replace(/\\n/g, "\n");
+      }
+
       const match = key.match(/^faq(\d+)$/); // matches faq1, faq2, faq3...
       if (match) {
         const index = match[1];
