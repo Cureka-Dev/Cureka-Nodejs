@@ -2125,23 +2125,13 @@ export const brandProducts = async (req, res) => {
     // }
 
     // Apply dynamic filters
-    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term"];
+    const ignoredKeys = ["page", "pageSize", "sortBy", "search_term", "min", "max"];
     for (const key of Object.keys(req.query)) {
       if (!ignoredKeys.includes(key)) {
-        if (key === "brand") {
-          const brandNames = req.query.brand.split(",");
-          const brandDocs = await Brand.find({ name: { $in: brandNames } });
-          const brandIds = brandDocs.map((b) => b.id);
-          query.brand = { $in: brandIds };
-        } else if (key === "minPrice") {
+        if (key === "minPrice") {
           query.final_price = { ...(query.final_price || {}), $gte: parseFloat(req.query[key]) };
         } else if (key === "maxPrice") {
           query.final_price = { ...(query.final_price || {}), $lte: parseFloat(req.query[key]) };
-        } else if (key === "min_age_years") {
-          const ageRange = decodeURIComponent(req.query[key]);
-          const [min, max] = ageRange.replace(/\+/g, " ").split("to").map(v => parseInt(v.trim(), 10));
-          if (!isNaN(min)) query.min_age_years = { ...(query.min_age_years || {}), $gte: min };
-          if (!isNaN(max)) query.max_age_years = { ...(query.max_age_years || {}), $lte: max };
         } else {
           let keys = req.query[key].split(",");
           query[key] = { $in: keys };
@@ -2179,10 +2169,9 @@ export const brandProducts = async (req, res) => {
       product.faqs = product.faqs || [];
     });
 
-    // Build filter aggregations
+// Build filters from baseQuery (null/undefined removed)
     const filterFields = [
       "skin_type",
-      "age_group",
       "spf",
       "size_chart_type",
       "colours",
@@ -2190,43 +2179,34 @@ export const brandProducts = async (req, res) => {
       "protein_type",
       "diaper_style",
       "formulation",
-      "staging",
-      "min_age_years",
+      "staging"
     ];
-
-    // ✅ Filters (cleaned null/undefined values)
+    
     const filters = {};
+
     for (const field of filterFields) {
       if (field === "min_age_years") {
-        const ageAgg = await Product.aggregate([
-          { $match: query },
+        const result = await Product.aggregate([
+          { $match: { brand: brandDoc.id, status: "Active" } },
           {
             $group: {
               _id: { min: "$min_age_years", max: "$max_age_years" },
               count: { $sum: 1 },
             },
           },
+          { $match: { "_id.min": { $ne: null }, "_id.max": { $ne: null } } }, // remove nulls
         ]);
-        filters[field] = ageAgg
-          .filter(r => r._id.min != null && r._id.max != null)
-          .map((r) => ({
-            value: `${r._id.min} to ${r._id.max}`,
-            count: r.count,
-          }));
+        filters[field] = result.map((r) => ({
+          value: `${r._id.min} to ${r._id.max}`,
+          count: r.count,
+        }));
       } else {
         const result = await Product.aggregate([
-          { $match: query },
-          {
-            $group: {
-              _id: `$${field}`,
-              count: { $sum: 1 },
-            },
-          },
+          { $match: { brand: brandDoc.id, status: "Active" } },
+          { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+          { $match: { _id: { $nin: [null, "", "undefined", "null"] } } }, // remove nulls
         ]);
-        filters[field] = result
-          .filter((r) => r._id != null && r._id !== "" && r._id !== "undefined" && r._id !== "null")
-          .map((r) => ({ value: r._id, count: r.count }))
-          .sort((a, b) => b.count - a.count);
+        filters[field] = result.map((r) => ({ value: r._id, count: r.count }));
       }
     }
 
