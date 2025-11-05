@@ -62,11 +62,14 @@ export const getCart = async (req, res) => {
         url: 1,
         weight_kg: 1,
         packer_name_and_address_with_pincode: 1,
+        stock_status:1
       }
     ).lean();
 
     // ✅ Map products by product_id
     const productMap = {};
+    console.log(products,"products");
+    
     products.forEach((p) => {
       productMap[p.product_id] = {
         product_name: p.vendor_article_name,
@@ -80,9 +83,11 @@ export const getCart = async (req, res) => {
         weight_kg: p.weight_kg || "",
         packer_name_and_address_with_pincode:
           p.packer_name_and_address_with_pincode || "",
+          stock_status:p.stock_status
       };
     });
-
+    console.log(productMap,"productMap");
+    
     // 🔹 Build cart response
     const data = cartItems.map((item) => {
       const prod = productMap[item.product_id] || {};
@@ -106,9 +111,11 @@ export const getCart = async (req, res) => {
         weight_kg: prod.weight_kg || "",
         packer_name_and_address_with_pincode:
           prod.packer_name_and_address_with_pincode || "",
+          stock_status:prod.stock_status
       };
     });
-
+    console.log(data,"-=-=data-=-");
+    
     // 🔹 Collect category IDs
     const cids = [...new Set(products.map((p) => p.category_id))];
 
@@ -153,6 +160,7 @@ export const getCart = async (req, res) => {
           brand_name: "$brandInfo.name",
           weight_kg: 1,
           packer_name_and_address_with_pincode: 1,
+          stock_status:1
         },
       },
     ];

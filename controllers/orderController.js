@@ -317,21 +317,46 @@ const orderController = {
       let user_id;
       let shipping_address_id;
       let billing_address_id;
+      console.log( req.body,"=-=-=-=-= req.body-=-=-=");
 
       // ✅ Check if user exists
       let user = await User.findOne({ mobile_number }).lean();
-
-      if (!user) {
-        // ✅ Create new user
+      console.log(user,"-=-=-=-=-user=-=-=-=-");
+      
+      // if (!user) {
+      //   // ✅ Create new user
+      //   const newUser = new User({
+      //     mobile_number,
+      //     email: shippingAddress?.email || null,
+      //   });
+      //   const savedUser = await newUser.save();
+      //   user_id = savedUser._id;
+      // } else {
+      //   user_id = user.id;
+      // }
+      // ✅ Create new user only if not found
+    if (!user) {
+      try {
         const newUser = new User({
           mobile_number,
-          email: shippingAddress.email || null,
+          email: shippingAddress?.email || null,
         });
         const savedUser = await newUser.save();
         user_id = savedUser._id;
-      } else {
-        user_id = user.id;
+      } catch (err) {
+        // ⚠️ Handle duplicate email edge case safely
+        if (err.code === 11000 && err.keyPattern?.email) {
+          const existingUser = await User.findOne({
+            email: shippingAddress?.email,
+          }).lean();
+          user_id = existingUser?._id;
+        } else {
+          throw err;
+        }
       }
+    } else {
+      user_id = user._id;
+    }
       //console.log("user_id",user_id);
       orderData.user_id = user_id;
 
