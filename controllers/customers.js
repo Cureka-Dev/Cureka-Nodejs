@@ -121,6 +121,104 @@ const sendOtp = async (req, res) => {
     }
   };
   
+  // SIGNUP
+export const signup = async (req, res) => {
+  try {
+    const { username, email, password, mobile_number} = req.body;
+
+    // Validation
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check existing user
+    const existingUser = await Customers.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create user
+    const newUser = await Customers.create({
+      username,
+      email,
+      password: hashedPassword,
+      mobile_number
+    });
+
+    // const token = generateToken(newUser);
+
+    return res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+      },
+    });
+  } catch (error) {
+    console.error("Signup Error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    console.log("LOGIN BODY:", req.body);
+
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    // Check if user exists
+    const existingUser = await Customers.findOne({ email });
+    if (!existingUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Compare passwords
+    // const isPasswordValid = await bcrypt.compare(password, existingUser.password);
+    // if (!isPasswordValid) {
+    //   return res.status(401).json({ message: "Invalid credentials" });
+    // }
+
+    let isValid = false;
+    if (existingUser.password.startsWith('$P$')) {
+      isValid = wpHash.CheckPassword(password, existingUser.password);
+    } else {
+      isValid = await bcrypt.compare(password, existingUser.password);
+    }
+
+    if (!isValid) {
+      return res.status(401).json({ message: 'Invalid email/Customersname or password' });
+    }
+
+    // Generate token
+    const token = generateToken(existingUser);
+
+    const response = {
+      status: true,
+      message: 'Customers verified',
+      data: {
+        access_token: token
+      }
+    };
+
+    // Successful response
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Login Error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 
 const loginEmail = async (req, res) => {
   try {
