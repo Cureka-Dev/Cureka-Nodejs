@@ -16,6 +16,7 @@ import elasticClient from "../middlewares/elasticsearch.js"; // Adjust path if n
 import mongoose from "mongoose";
 import Fuse from "fuse.js";
 import NodeCache from "node-cache";
+import subCategory from "../DB/models/subCategory.js";
 const cache = new NodeCache({ stdTTL: 300 });
 
 const allowedSortFields = ["ranking", "popularity", "new-arrivals", "price-high-to-low", "price-low-to-high", "mrp", "added_date", "discount", "created_at"];
@@ -3236,17 +3237,20 @@ export const getSuggestedProducts = async (req, res) => {
     const baseProduct = await Product.findOne({ product_id: productId });
     console.log(baseProduct.brand,"baseProduct");
     console.log(baseProduct.category_id,"baseProduct");
+    const subSubCategory = await subCategory.find({category_id : { $ne: baseProduct.category_id}})
+    console.log(subSubCategory.length,"Sub Sub Category");
+    
     if (!baseProduct) {
       return res.status(404).json({ error: "Product not found" });
     }
-    console.log("Base Product",baseProduct);
+    // console.log("Base Product",baseProduct);
     
     // ✅ Fix: use product_id instead of id for filtering
     const suggestedProducts = await Product.find({
       product_id: { $ne: productId }, // exclude the same product
       $or: [
         { brand: baseProduct.brand },
-        { category_id: baseProduct.category_id },
+        { sub_category_id: baseProduct.sub_category_id },
       ],
     })
       .limit(6)
