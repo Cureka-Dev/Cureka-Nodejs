@@ -1183,9 +1183,23 @@ export const categoryProducts = async (req, res) => {
 let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
+  
+    if( field === "price-high-to-low"){
+     sortValue = { final_price : -1}
+    }else if( field === "price-low-to-high"){
+     sortValue = { final_price : 1}
+    }else if( field === "popularity"){
+     sortValue = { ranking : -1}
+    }else if( field === "new-arrivals"){
+     sortValue = { new_arrival : -1}
+    }else if( field === "discount"){
+     sortValue = { discount_percent : -1}
+    }
+    else{
+     sortValue[field] = order === "desc" ? -1 : 1;
+    }
 } else {
-  sortValue = { ranking: 1 }; // default
+  sortValue = { ranking: -1 }; // default
 }
 
     const products = await Product.aggregate([
@@ -1411,12 +1425,26 @@ export const subcategoryProducts = async (req, res) => {
     //   .limit(pageSize)
     //   .lean();
 
-    let sortValue = {};
+let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
+  
+    if( field === "price-high-to-low"){
+     sortValue = { final_price : -1}
+    }else if( field === "price-low-to-high"){
+     sortValue = { final_price : 1}
+    }else if( field === "popularity"){
+     sortValue = { ranking : -1}
+    }else if( field === "new-arrivals"){
+     sortValue = { new_arrival : -1}
+    }else if( field === "discount"){
+     sortValue = { discount_percent : -1}
+    }
+    else{
+     sortValue[field] = order === "desc" ? -1 : 1;
+    }
 } else {
-  sortValue = { ranking: 1 }; // default
+  sortValue = { ranking: -1 }; // default
 }
 
         const products = await Product.aggregate([
@@ -1641,12 +1669,26 @@ export const subSubCategoryProducts = async (req, res) => {
 
     const totalItems = await Product.countDocuments(query);
 
-        let sortValue = {};
+let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
+  
+    if( field === "price-high-to-low"){
+     sortValue = { final_price : -1}
+    }else if( field === "price-low-to-high"){
+     sortValue = { final_price : 1}
+    }else if( field === "popularity"){
+     sortValue = { ranking : -1}
+    }else if( field === "new-arrivals"){
+     sortValue = { new_arrival : -1}
+    }else if( field === "discount"){
+     sortValue = { discount_percent : -1}
+    }
+    else{
+     sortValue[field] = order === "desc" ? -1 : 1;
+    }
 } else {
-  sortValue = { ranking: 1 }; // default
+  sortValue = { ranking: -1 }; // default
 }
 
     // const products = await Product.find(finalQuery)
@@ -1860,9 +1902,23 @@ export const concernProducts = async (req, res) => {
 let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
+  
+    if( field === "price-high-to-low"){
+     sortValue = { final_price : -1}
+    }else if( field === "price-low-to-high"){
+     sortValue = { final_price : 1}
+    }else if( field === "popularity"){
+     sortValue = { ranking : -1}
+    }else if( field === "new-arrivals"){
+     sortValue = { new_arrival : -1}
+    }else if( field === "discount"){
+     sortValue = { discount_percent : -1}
+    }
+    else{
+     sortValue[field] = order === "desc" ? -1 : 1;
+    }
 } else {
-  sortValue = { ranking: 1 }; // default
+  sortValue = { ranking: -1 }; // default
 }
 
     // const products = await Product.find(query)
@@ -2113,12 +2169,26 @@ export const brandProducts = async (req, res) => {
 
     const totalItems = await Product.countDocuments(query);
 
-    let sortValue = {};
+let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
-  sortValue[field] = order === "desc" ? -1 : 1;
+  
+    if( field === "price-high-to-low"){
+     sortValue = { final_price : -1}
+    }else if( field === "price-low-to-high"){
+     sortValue = { final_price : 1}
+    }else if( field === "popularity"){
+     sortValue = { ranking : -1}
+    }else if( field === "new-arrivals"){
+     sortValue = { new_arrival : -1}
+    }else if( field === "discount"){
+     sortValue = { discount_percent : -1}
+    }
+    else{
+     sortValue[field] = order === "desc" ? -1 : 1;
+    }
 } else {
-  sortValue = { ranking: 1 }; // default
+  sortValue = { ranking: -1 }; // default
 }
 
 const products = await Product.aggregate([
