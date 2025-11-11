@@ -519,6 +519,39 @@ export const getProductBySlug = async (req, res) => {
       popups
     }
 
+const sortVariants = (variants) => {
+  const sizeOrder = [
+    "Universal", "Special", "Child", "XS", "Small", "S", "Medium", "M", "Large", "L",
+    "XL", "XXL", "XXXL", "4XL", "5XL"
+  ];
+
+  return variants.sort((a, b) => {
+    const valA = a.brand_size || a;
+    const valB = b.brand_size || b;
+
+    const numA = parseFloat(valA);
+    const numB = parseFloat(valB);
+
+    // If both are numeric (like 50g, 100g)
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+
+    // If both match size labels
+    const indexA = sizeOrder.findIndex(size => valA.toLowerCase().includes(size.toLowerCase()));
+    const indexB = sizeOrder.findIndex(size => valB.toLowerCase().includes(size.toLowerCase()));
+
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+
+    // Mixed types or not found → fallback to string comparison
+    return valA.localeCompare(valB);
+  });
+};
+
+    if( variants && typeof variants === "object" && variants?.length > 0){
+        let dataMap = [...variants, { brand_size: product.brand_size}];
+        const sortedVariants = sortVariants(dataMap);
+        objectData.sortedVariants = sortedVariants;
+    }
+
     let json_string = JSON.stringify(objectData).replace("//n", "/n");
     let finalData = JSON.parse(json_string);
     // Final response
