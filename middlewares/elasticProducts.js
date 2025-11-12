@@ -7,6 +7,7 @@ dotenv.config();
 // const MONGO_URI = "mongodb+srv://dev_db_user:ekd9zxcopRs0SQl9@cluster0.lvzcoaa.mongodb.net/cureka?retryWrites=true&w=majority&appName=Cluster0"; // ✅ adjust this
 
 // const MONGO_URI = "mongodb://localhost:27017/cureka"
+console.log("Connecting to MongoDB:", process.env.MONGO_URI);
 const reindexProductsToElastic = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
