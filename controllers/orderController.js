@@ -261,22 +261,51 @@ const orderController = {
     }
   },
 
+  // getAdminOrders: async (req, res) => {
+  //   try {
+  //     //console.log("req.user", req.user);
+  //     const userId = req.user.id;
+  //     const orders = await getAdminOrderDetails(req);
+  //     //console.log("orders", orders);
+  //     for (let i = 0; i < orders.length; i++) {
+  //       orders[i].time = await timeAgo(orders.created_at);
+  //     }
+  //     orders.sort((a, b) => Number(b.order_id) - Number(a.order_id));
+  //     res.status(200).json(orders);
+  //   } catch (error) {
+  //     console.error("Error fetching user products:", error);
+  //     res.status(500).json({ error: "Internal Server Error" });
+  //   }
+  // },
   getAdminOrders: async (req, res) => {
-    try {
-      //console.log("req.user", req.user);
-      const userId = req.user.id;
-      const orders = await getAdminOrderDetails(req);
-      //console.log("orders", orders);
-      for (let i = 0; i < orders.length; i++) {
-        orders[i].time = await timeAgo(orders.created_at);
-      }
-      orders.sort((a, b) => Number(b.order_id) - Number(a.order_id));
-      res.status(200).json(orders);
-    } catch (error) {
-      console.error("Error fetching user products:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+  try {
+    // Parse pagination parameters
+    const page = parseInt(req.query.page) || 1; // default page 1
+    const limit = parseInt(req.query.limit) || 20; // default 20 orders per page
+    const skip = (page - 1) * limit;
+
+    // Fetch paginated orders
+    const { orders, totalOrders } = await getAdminOrderDetails(req, skip, limit);
+
+    // Add relative time (optional)
+    for (let i = 0; i < orders.length; i++) {
+      orders[i].time = await timeAgo(orders[i].created_at);
     }
-  },
+
+    // Respond with pagination metadata
+    res.status(200).json({
+      success: true,
+      totalOrders,
+      totalPages: Math.ceil(totalOrders / limit),
+      currentPage: page,
+      perPage: limit,
+      orders,
+    });
+  } catch (error) {
+    console.error("Error fetching admin orders:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+},
   // ========== Unicommerce Order Info ==========
   getUnicommerseOrderInfo: async (req, res) => {
     try {
@@ -650,74 +679,203 @@ export const getOrderDetails = async (userId) => {
 
 
 
-export const getAdminOrderDetails = async (req) => {
+// export const getAdminOrderDetails = async (req) => {
+//   try {
+//     const orders = await Order.aggregate([
+//       // ✅ Match first
+//       {
+//         $match: {
+//           order_placed_status: { $ne: "Pending Payment" }
+//         }
+//       },
+
+//       // ✅ Sort and limit BEFORE lookups to avoid timeouts
+//       { $sort: { created_at: -1 } },
+//       { $limit: 10 },
+
+//       // shipping address
+//       {
+//         $lookup: {
+//           from: "addresses",
+//           localField: "shipping_address_id",
+//           foreignField: "id",
+//           as: "shipping_address"
+//         }
+//       },
+//       { $unwind: { path: "$shipping_address", preserveNullAndEmptyArrays: true } },
+
+//       // billing address
+//       {
+//         $lookup: {
+//           from: "addresses",
+//           localField: "billing_address_id",
+//           foreignField: "id",
+//           as: "billing_address"
+//         }
+//       },
+//       { $unwind: { path: "$billing_address", preserveNullAndEmptyArrays: true } },
+
+//       // customer details
+//       {
+//         $lookup: {
+//           from: "customers",
+//           localField: "user_id",
+//           foreignField: "id",
+//           as: "userDetails"
+//         }
+//       },
+//       { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
+
+//       // order details
+//       {
+//         $lookup: {
+//           from: "orderdetails",
+//           localField: "id",
+//           foreignField: "order_id",
+//           as: "items"
+//         }
+//       },
+
+//       // products
+//       {
+//         $lookup: {
+//           from: "products",
+//           localField: "items.product_id",
+//           foreignField: "product_id",
+//           as: "products"
+//         }
+//       },
+
+//       // ✅ Shape final document
+//       {
+//         $project: {
+//           _id: 0,
+//           order_id: "$id",
+//           user_id: 1,
+//           shipping_address: 1,
+//           billing_address: 1,
+//           subtotal: 1,
+//           discount: 1,
+//           coupon_code: 1,
+//           gift_wrapping: 1,
+//           transaction_id: 1,
+//           is_cod: 1,
+//           order_placed_status: 1,
+//           created_at: 1,
+//           first_name: "$userDetails.first_name",
+//           walletMoneyUsed: 1,
+//           is_wallet_option: 1,
+//           shippingCharge: 1,
+//           trackInfo: 1,
+//           products: {
+//             $map: {
+//               input: "$items",
+//               as: "item",
+//               in: {
+//                 product_id: "$$item.product_id",
+//                 quantity: "$$item.quantity",
+//                 details: {
+//                   $arrayElemAt: [
+//                     {
+//                       $filter: {
+//                         input: "$products",
+//                         as: "p",
+//                         cond: { $eq: ["$$p.product_id", "$$item.product_id"] }
+//                       }
+//                     },
+//                     0
+//                   ]
+//                 }
+//               }
+//             }
+//           }
+//         }
+//       }
+//     ]);
+
+//     // Parse trackInfo safely
+//     return orders.map(order => ({
+//       ...order,
+//       trackInfo: order.trackInfo ? JSON.parse(order.trackInfo) : {}
+//     }));
+
+//   } catch (err) {
+//     console.error("Error in getAdminOrderDetails:", err);
+//     throw err;
+//   }
+// };
+export const getAdminOrderDetails = async (req, skip = 0, limit = 20) => {
   try {
+    
+    // Step 1: Get total count (for pagination metadata)
+    const totalOrders = await Order.countDocuments({
+      order_placed_status: { $ne: "Pending Payment" },
+    });
+
+    // Step 2: Paginated aggregation
     const orders = await Order.aggregate([
-      // ✅ Match first
       {
         $match: {
-          order_placed_status: { $ne: "Pending Payment" }
-        }
+          order_placed_status: { $ne: "Pending Payment" },
+        },
       },
-
-      // ✅ Sort and limit BEFORE lookups to avoid timeouts
       { $sort: { created_at: -1 } },
-      { $limit: 10 },
+      { $skip: skip },
+      { $limit: limit },
 
-      // shipping address
+      // Shipping address
       {
         $lookup: {
           from: "addresses",
           localField: "shipping_address_id",
           foreignField: "id",
-          as: "shipping_address"
-        }
+          as: "shipping_address",
+        },
       },
       { $unwind: { path: "$shipping_address", preserveNullAndEmptyArrays: true } },
 
-      // billing address
+      // Billing address
       {
         $lookup: {
           from: "addresses",
           localField: "billing_address_id",
           foreignField: "id",
-          as: "billing_address"
-        }
+          as: "billing_address",
+        },
       },
       { $unwind: { path: "$billing_address", preserveNullAndEmptyArrays: true } },
 
-      // customer details
+      // Customer details
       {
         $lookup: {
           from: "customers",
           localField: "user_id",
           foreignField: "id",
-          as: "userDetails"
-        }
+          as: "userDetails",
+        },
       },
       { $unwind: { path: "$userDetails", preserveNullAndEmptyArrays: true } },
 
-      // order details
+      // Order details
       {
         $lookup: {
           from: "orderdetails",
           localField: "id",
           foreignField: "order_id",
-          as: "items"
-        }
+          as: "items",
+        },
       },
 
-      // products
+      // Products
       {
         $lookup: {
           from: "products",
           localField: "items.product_id",
           foreignField: "product_id",
-          as: "products"
-        }
+          as: "products",
+        },
       },
 
-      // ✅ Shape final document
       {
         $project: {
           _id: 0,
@@ -751,30 +909,32 @@ export const getAdminOrderDetails = async (req) => {
                       $filter: {
                         input: "$products",
                         as: "p",
-                        cond: { $eq: ["$$p.product_id", "$$item.product_id"] }
-                      }
+                        cond: { $eq: ["$$p.product_id", "$$item.product_id"] },
+                      },
                     },
-                    0
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
     ]);
 
-    // Parse trackInfo safely
-    return orders.map(order => ({
-      ...order,
-      trackInfo: order.trackInfo ? JSON.parse(order.trackInfo) : {}
-    }));
-
+    return {
+      orders: orders.map(order => ({
+        ...order,
+        trackInfo: order.trackInfo ? JSON.parse(order.trackInfo) : {},
+      })),
+      totalOrders,
+    };
   } catch (err) {
     console.error("Error in getAdminOrderDetails:", err);
     throw err;
   }
-};
+}
+
 
 export const saveUniCommerse = async (orderData, orderId, products, user_id) => {
   try {

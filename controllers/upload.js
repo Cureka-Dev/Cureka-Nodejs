@@ -25,7 +25,7 @@ import os from 'os';
 //const hostname = os.hostname();
 const allowedMimeTypes = ["image/webp"]; // ✅ Only allow webp
 
-const MAX_FILE_SIZE = 50 * 1024; // 50 KB
+const MAX_FILE_SIZE = 350 * 1024; // 50 KB
 
 // ✅ Multer-S3 Storage Configuration with File Size Limit
 const upload = multer({
