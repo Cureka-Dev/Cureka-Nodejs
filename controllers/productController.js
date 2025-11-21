@@ -2379,7 +2379,7 @@ const products = await Product.aggregate([
 export const adminFetchProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 13000;
+    const pageSize = parseInt(req.query.pageSize) || 3;
 
     const totalItems = await Product.countDocuments({});
 
@@ -2451,6 +2451,92 @@ export const adminFetchProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in /admin-fetch-products:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+export const fetchProductsUrl = async (req, res) => {
+  try {
+     const productLookupPipeline = [
+      {
+        $lookup: {
+          from: "categories",
+          localField: "category_id",
+          foreignField: "id",
+          as: "category"
+        }
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "subcategories",
+          localField: "sub_category_id",
+          foreignField: "id",
+          as: "sub_category"
+        }
+      },
+      { $unwind: { path: "$sub_category", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "subsubcategories",
+          localField: "sub_sub_category_id",
+          foreignField: "id",
+          as: "sub_sub_category"
+        }
+      },
+      { $unwind: { path: "$sub_sub_category", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "subsubsubcategories",
+          localField: "sub_sub_sub_category_id",
+          foreignField: "id",
+          as: "sub_sub_sub_category"
+        }
+      },
+      { $unwind: { path: "$sub_sub_sub_category", preserveNullAndEmptyArrays: true } },
+
+      {
+        $lookup: {
+          from: "brands",
+          localField: "brand",
+          foreignField: "id",
+          as: "brand"
+        }
+      },
+      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+      {
+        $project: {
+          product_id: 1,          
+          slug: 1,         
+          category_name: "$category.name",
+          category_slug: "$category.slug",
+          sub_category_name: "$sub_category.name",
+          sub_category_slug: "$sub_category.slug",
+          sub_sub_category_name: "$sub_sub_category.name",
+          sub_sub_category_slug: "$sub_sub_category.slug",
+          sub_sub_sub_category_name: "$sub_sub_sub_category.name",
+          sub_sub_sub_category_slug: "$sub_sub_sub_category.slug"
+        }
+      }
+    ];
+    
+    // New Arrivals
+    const products = await Product.aggregate([
+      { $match: { status: "Active"} },
+      ...productLookupPipeline,
+    ]);
+    // const products = await Product.find({})
+    // .select('_id url') // Only return _id and url fields
+    // .sort({ _id: -1 }); // Sort by ID descending
+
+    res.status(200).json({     
+      products,
+    });
+  } catch (error) {
+    console.error("Error in /fetch-products-url:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

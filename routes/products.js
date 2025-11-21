@@ -14,6 +14,7 @@ import {
   brandProducts,
   getBrandById,
   adminFetchProducts,
+  fetchProductsUrl,
   adminFetchProductById,
   getNewTopPics,
   getProductsByGroup,
@@ -51,6 +52,8 @@ router.get("/brand-products/:slug", brandProducts);
 router.get("/get-brand-name/:id", getBrandById);
 // Route to fetch paginated product list for admin
 router.get("/admin-fetch-products", adminFetchProducts);
+router.get("/fetch-products-url", fetchProductsUrl);
+
 
 // Route to fetch single product details by ID for admin
 router.get("/admin-fetch-products-by-id/:id", adminFetchProductById);
