@@ -2379,7 +2379,7 @@ const products = await Product.aggregate([
 export const adminFetchProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const pageSize = parseInt(req.query.pageSize) || 3;
+    const pageSize = parseInt(req.query.pageSize) || 12957;
 
     const totalItems = await Product.countDocuments({});
 
