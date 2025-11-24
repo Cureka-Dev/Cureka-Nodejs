@@ -1929,30 +1929,53 @@ export const concernProducts = async (req, res) => {
         }
       }
     }
-
+    console.log(query,"-=-=-=-=query-=-=-");
+    
     // Fetch products
     const totalItems = await Product.countDocuments(query);
-
+    console.log(totalItems,"-=-=-=-=totalItems-=-=");
+    
+// let sortValue = {};
+// if (req.query.sortBy) {
+//   const [field, order] = req.query.sortBy.split(" ");
+  
+//     if( field === "price-high-to-low"){
+//      sortValue = { final_price : -1}
+//     }else if( field === "price-low-to-high"){
+//      sortValue = { final_price : 1}
+//     }else if( field === "popularity"){
+//      sortValue = { ranking : -1}
+//     }else if( field === "new-arrivals"){
+//      sortValue = { new_arrival : -1}
+//     }else if( field === "discount"){
+//      sortValue = { discount_percent : -1}
+//     }
+//     else{
+//      sortValue[field] = order === "desc" ? -1 : 1;
+//     }
+// } else {
+//   sortValue = { ranking: -1 }; // default
+// }
 let sortValue = {};
 if (req.query.sortBy) {
   const [field, order] = req.query.sortBy.split(" ");
   
-    if( field === "price-high-to-low"){
-     sortValue = { final_price : -1}
-    }else if( field === "price-low-to-high"){
-     sortValue = { final_price : 1}
-    }else if( field === "popularity"){
-     sortValue = { ranking : -1}
-    }else if( field === "new-arrivals"){
-     sortValue = { new_arrival : -1}
-    }else if( field === "discount"){
-     sortValue = { discount_percent : -1}
-    }
-    else{
-     sortValue[field] = order === "desc" ? -1 : 1;
-    }
+  if(field === "price-high-to-low"){
+    sortValue = { final_price: -1, _id: 1 };  // ← Added _id
+  } else if(field === "price-low-to-high"){
+    sortValue = { final_price: 1, _id: 1 };   // ← Added _id
+  } else if(field === "popularity"){
+    sortValue = { ranking: -1, _id: 1 };      // ← Added _id
+  } else if(field === "new-arrivals"){
+    sortValue = { new_arrival: -1, _id: 1 };  // ← Added _id
+  } else if(field === "discount"){
+    sortValue = { discount_percent: -1, _id: 1 };  // ← Added _id
+  } else {
+    sortValue[field] = order === "desc" ? -1 : 1;
+    sortValue._id = 1;  // ← Added _id
+  }
 } else {
-  sortValue = { ranking: -1 }; // default
+  sortValue = { ranking: -1, _id: 1 };  // ← Added _id to default
 }
 
     // const products = await Product.find(query)
@@ -1966,38 +1989,61 @@ if (req.query.sortBy) {
     //   .limit(pageSize)
     //   .lean();
 
-  const products = await Product.aggregate([
-  //  Filter (same as find)
-  { $match: query },
+//   const products = await Product.aggregate([
+//   //  Filter (same as find)
+//   { $match: query },
 
-  // Join with brands collection (LEFT JOIN)
+//   // Join with brands collection (LEFT JOIN)
+//   {
+//     $lookup: {
+//       from: "brands",             // name of the Brand collection
+//       localField: "brand",        // field in Product
+//       foreignField: "id",        // field in Brand
+//       as: "brand"                 // output field name
+//     }
+//   },
+
+//   // Unwind to turn the joined brand array into an object
+//   {
+//     $unwind: {
+//       path: "$brand",
+//       preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+//     }
+//   },
+
+//   // Sort (same as .sort(sortValue))
+//   { $sort: sortValue },
+
+//   // Pagination (same as skip + limit)
+//   { $skip: (page - 1) * pageSize },
+//   { $limit: pageSize },
+
+// ]);
+
+// Replace this section in your code:
+const products = await Product.aggregate([
+  { $match: query },
   {
     $lookup: {
-      from: "brands",             // name of the Brand collection
-      localField: "brand",        // field in Product
-      foreignField: "id",        // field in Brand
-      as: "brand"                 // output field name
+      from: "brands",
+      localField: "brand",
+      foreignField: "id",
+      as: "brand"
     }
   },
-
-  // Unwind to turn the joined brand array into an object
   {
     $unwind: {
       path: "$brand",
-      preserveNullAndEmptyArrays: true // keep products even without a brand (LEFT JOIN behavior)
+      preserveNullAndEmptyArrays: true
     }
   },
-
-  // Sort (same as .sort(sortValue))
-  { $sort: sortValue },
-
-  // Pagination (same as skip + limit)
+  
+  // ✅ FIX: Add _id as secondary sort for consistency
+  { $sort: { ...sortValue, _id: 1 } },  // ← CHANGE THIS LINE
+  
   { $skip: (page - 1) * pageSize },
   { $limit: pageSize },
-
 ]);
-
-
 
     const productIds = products.map((p) => p.id);
     const reviews = await ProductReview.find({
