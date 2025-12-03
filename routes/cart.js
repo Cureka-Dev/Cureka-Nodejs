@@ -6,7 +6,7 @@ import { userType } from "../utils/constants.js";
 const router = express.Router();
 
 router.get("/", getCart);
-router.get("/getCart", getGokwikCart);
+router.post("/getCart", getGokwikCart);
 router.post("/", addToCart);
 router.put("/", jwtMiddleware([userType.USER]), updateCart);
 router.post("/moveCart",jwtMiddleware([userType.USER]), moveCart);

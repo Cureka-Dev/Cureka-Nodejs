@@ -192,8 +192,12 @@ export const getCart = async (req, res) => {
 
 export const getGokwikCart = async (req, res) => {
   try {
-    const userId = req.query.userId;
-    const tempData = req.header("Tempdata");
+    // const userId = req.query.userId;
+    // const tempData = req.header("Tempdata");
+    // const cart_id = req.body.cart_id;
+
+     const userId = req.body.userId; 
+    const tempData = req.body.tempData; 
     const cart_id = req.body.cart_id;
 
     let matchQuery = {};
@@ -236,7 +240,7 @@ export const getGokwikCart = async (req, res) => {
     }
 
     const cartItems = await Cart.find(matchQuery).lean();
-    console.log(cartItems,"-=-=-=-=-cartItems=-=-=-");
+    console.log(cartItems,"-=-=-=-=-cartItems=-=-=-=-");
     
     if (!cartItems.length) {
       return res.json({
@@ -313,7 +317,6 @@ export const getGokwikCart = async (req, res) => {
         // image: prod?.product_images?.[0] || "",
         product_id: prod?.product_id,
         variant_id: null,
-        sku: "", 
         title: prod?.vendor_article_name,
         image_url: prod?.product_images?.[0] || "",
         quantity: qty,
