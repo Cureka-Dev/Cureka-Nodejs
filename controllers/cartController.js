@@ -349,13 +349,15 @@ export const getGokwikCart = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        items,
-        subtotal,
-        // discount,
-        discount_total,
-        shipping_total,
-        total,
-        currency: "INR"
+        cart:{
+          items,
+          subtotal,
+          // discount,
+          discount_total,
+          shipping_total,
+          total,
+          currency: "INR"
+        }
       }
     });
 
