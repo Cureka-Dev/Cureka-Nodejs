@@ -31,7 +31,7 @@ export const getCart = async (req, res) => {
     //console.log("matchQuery", matchQuery);
     // 🔹 Fetch cart items
     const cartItems = await Cart.find(matchQuery).lean();
-
+    console.log(cartItems,"-=-=-=-=-cartItems=-=-=-");
     if (!cartItems.length) {
       return res.status(200).json({
         status: true,
@@ -68,7 +68,7 @@ export const getCart = async (req, res) => {
 
     // ✅ Map products by product_id
     const productMap = {};
-    console.log(products,"products");
+    // console.log(products,"products");
     
     products.forEach((p) => {
       productMap[p.product_id] = {
@@ -86,7 +86,7 @@ export const getCart = async (req, res) => {
           stock_status:p.stock_status
       };
     });
-    console.log(productMap,"productMap");
+    // console.log(productMap,"productMap");
     
     // 🔹 Build cart response
     const data = cartItems.map((item) => {
@@ -114,7 +114,7 @@ export const getCart = async (req, res) => {
           stock_status:prod.stock_status
       };
     });
-    console.log(data,"-=-=data-=-");
+    // console.log(data,"-=-=data-=-");
     
     // 🔹 Collect category IDs
     const cids = [...new Set(products.map((p) => p.category_id))];
@@ -187,6 +187,159 @@ export const getCart = async (req, res) => {
   } catch (error) {
     console.error("Error fetching cart:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getGokwikCart = async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    const tempData = req.header("Tempdata");
+
+    let matchQuery = {};
+
+    if (userId) {
+      matchQuery = {
+        $or: [
+          { user_id: Number(userId) },
+          { tempData }
+        ]
+      };
+    } else if (tempData) {
+      matchQuery = { tempData };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Either userId or tempdata is required",
+      });
+    }
+
+    const cartItems = await Cart.find(matchQuery).lean();
+    console.log(cartItems,"-=-=-=-=-cartItems=-=-=-");
+    
+    if (!cartItems.length) {
+      return res.json({
+        success: true,
+        data: {
+          items: [],
+          subtotal: 0,
+          // discount: 0,
+          // shipping_total: 0,
+          // total: 0
+          discount_total: 0,
+          shipping_total: 0,
+          total: 0,
+          currency: "INR"
+        }
+      });
+    }
+
+    // Collect product IDs
+    const productIds = cartItems.map((item) => Number(item.product_id));
+
+    // Fetch product details
+    const products = await Product.find(
+      { product_id: { $in: productIds } },
+      {
+        product_id: 1,
+        vendor_article_name: 1,
+        mrp:1,
+        final_price: 1,
+        product_images: 1,
+        weight_kg: 1,
+        discount_percent:1,
+        variants:1,
+        sku_code:1
+      }
+    ).lean();
+    
+    // Map for quick access
+    const productMap = {};
+    products.forEach((p) => { productMap[p.product_id] = p; console.log(p,"Products");
+    });
+
+    // Build GoKwik cart format
+    let subtotal = 0;
+    // let discount = 0;
+    let discount_total = 0;
+
+    const items = cartItems.map((item) => {
+      const prod = productMap[item.product_id];
+
+      const mrp = prod?.mrp || 0;
+      const price = prod?.final_price || 0;
+      const qty = item.qty || 1;
+      // const discountPercent = prod?.discount_percent || 0;
+      subtotal += mrp * qty;
+      // const price = prod?.final_price || 0;
+      // subtotal += price * item.qty;
+      console.log(prod?.final_price,"-=-=-=-=-=-=-=-=-=-=-=-=-=-");
+      
+      // 🔹 Calculate discount amount using discount_percent
+      // const itemDiscount = ((mrp * discountPercent) / 100) * qty;
+      const itemDiscount = ((mrp * (prod?.discount_percent || 0)) / 100) * qty;
+      // discount += Math.round(itemDiscount);
+      discount_total += Math.round(itemDiscount);
+      console.log(discount_total,"discount_total");
+      
+      return {
+        // product_id: prod?.product_id,
+        // name: prod?.vendor_article_name,
+        // qty,
+        // price,
+        // mrp,
+        // discount_amount: discount,
+        // image: prod?.product_images?.[0] || "",
+        product_id: prod?.product_id,
+        variant_id: null,
+        sku: "", 
+        title: prod?.vendor_article_name,
+        image_url: prod?.product_images?.[0] || "",
+        quantity: qty,
+        total: price * qty,
+        sku:prod?.sku_code
+      };
+    });
+
+    let shipping_total = 0;
+
+    if (subtotal >= 1 && subtotal <= 199) shipping_total = 75;
+    else if (subtotal >= 200 && subtotal <= 399) shipping_total = 55;
+    else if (subtotal >= 400 && subtotal <= 599) shipping_total = 45;
+    else if (subtotal >= 600 && subtotal <= 899) shipping_total = 25;
+    else if (subtotal >= 900) shipping_total = 0;
+
+    // Round shipping also
+    shipping_total = Number(shipping_total.toFixed(2));
+
+    
+    // subtotal = Math.round(subtotal * 100) / 100;
+    // discount = discount * 100 / 100;
+    // console.log(subtotal,Math.round(discount),"discountdiscount");
+    
+
+    // const total =  Math.round((subtotal - discount + shipping_total) * 100) / 100;
+     const total =
+      Math.round((subtotal - discount_total + shipping_total) * 100) / 100;
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        subtotal,
+        // discount,
+        discount_total,
+        shipping_total,
+        total,
+        currency: "INR"
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching cart:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
   }
 };
 
