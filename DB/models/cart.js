@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const cartSchema = new mongoose.Schema({
    id: { type: Number, unique: true },
+   cart_id:{type: String, default: null},
   user_id: { type: Number,  default: null },
   product_id: { type: Number, required: true },
   qty: { type: Number, required: true },

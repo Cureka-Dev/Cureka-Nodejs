@@ -194,22 +194,44 @@ export const getGokwikCart = async (req, res) => {
   try {
     const userId = req.query.userId;
     const tempData = req.header("Tempdata");
+    const cart_id = req.body.cart_id;
 
     let matchQuery = {};
 
-    if (userId) {
+    // if (userId) {
+    //   matchQuery = {
+    //     $or: [
+    //       { user_id: Number(userId) },
+    //       { tempData }
+    //     ]
+    //   };
+    // } else if (tempData) {
+    //   matchQuery = { tempData };
+    // } else {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Either userId or tempdata is required",
+    //   });
+    // }
+    if (cart_id) {
+      // Direct GoKwik cart fetch
+      matchQuery = { cart_id };
+    } 
+    else if (userId) {
       matchQuery = {
         $or: [
           { user_id: Number(userId) },
           { tempData }
         ]
       };
-    } else if (tempData) {
+    } 
+    else if (tempData) {
       matchQuery = { tempData };
-    } else {
+    } 
+    else {
       return res.status(400).json({
         success: false,
-        message: "Either userId or tempdata is required",
+        message: "cart_id, userId or tempdata is required",
       });
     }
 
@@ -403,6 +425,28 @@ export const addToCart = async (req, res) => {
       return res.status(200).json(rest);
     }
 
+    // ✅ Get or generate cart_id for this user/tempData
+    const cartFilter = userId ? { user_id: userId } : { tempData };
+    const existingCart = await Cart.findOne(cartFilter).select("cart_id");
+    console.log(existingCart,"-=-=-=-=existingCart-=");
+    
+    let cart_id;
+    if (existingCart && existingCart.cart_id) {
+      // Use existing cart_id
+      cart_id = existingCart.cart_id;
+    } else {
+      // Generate new cart_id
+      const generateCartId = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let cartId = '';
+        for (let i = 0; i < 32; i++) {
+          cartId += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return cartId;
+      };
+      cart_id = generateCartId();
+    }
+
     // ✅ Generate sequential id (latest + 1)
     const latest = await Cart.findOne().sort({ id: -1 }).select("id");
     const newId = latest ? latest.id + 1 : 1;
@@ -410,6 +454,7 @@ export const addToCart = async (req, res) => {
     const newCart = new Cart({
       id: newId,
       user_id: userId,
+      cart_id: cart_id,
       tempData,
       product_id,
       qty: quantity,
