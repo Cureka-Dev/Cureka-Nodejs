@@ -315,10 +315,10 @@ export const getGokwikCart = async (req, res) => {
         // mrp,
         // discount_amount: discount,
         // image: prod?.product_images?.[0] || "",
-        product_id: prod?.product_id,
-        variant_id: null,
+        product_id: String(prod?.product_id || ""),
+        variant_id: " ",
         title: prod?.vendor_article_name,
-        image_url: prod?.product_images?.[0] || "",
+        image_url: prod?.product_images?.[0].image || "",
         quantity: qty,
         total: price * qty,
         sku:prod?.sku_code
