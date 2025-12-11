@@ -18,7 +18,8 @@ const orderSchema = new mongoose.Schema({
   order_placed_status: { type: String, default: "Pending Payment" },
   products: [productInOrderSchema],
   created_at: { type: Date, default: Date.now },
-  shiprocket_id: String
+  shiprocket_id: String,
+  cart_id:{type: String, default: null},
 });
 
 export default mongoose.model("Order", orderSchema);

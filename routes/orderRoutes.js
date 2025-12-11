@@ -1,9 +1,12 @@
 import express from "express";
 import orderController from "../controllers/orderController.js";
+import gokwikController from "../controllers/gokwikController.js"
 import getAdminOrderDetails from "../controllers/orderController.js"
 import jwtMiddleware from "../middlewares/jwtMiddleware.js";
 import { userType } from "../utils/constants.js";
 const router = express.Router();
+
+router.post("/create-order", gokwikController.createOrder);
 
 router.post("/order", jwtMiddleware([userType.USER]), orderController.placeOrder);
 router.get("/orders", jwtMiddleware([userType.USER]), orderController.getOrders);
