@@ -186,77 +186,195 @@ createOrder: async (req, res) => {
       } else {
         user_id = user.id;
       }
+      // const isAddressSameFn = (shipping, billing) => {
+      //     if (!shipping || !billing) return false;
+
+      //     return (
+      //       shipping.first_name === billing.first_name &&
+      //       shipping.last_name === billing.last_name &&
+      //       shipping.email === billing.email &&
+      //       shipping.phone === billing.phone &&
+      //       shipping.address === billing.address &&
+      //       shipping.landmark === billing.landmark &&
+      //       shipping.pincode === billing.pincode &&
+      //       shipping.city === billing.city &&
+      //       shipping.state === billing.state
+      //     );
+      //   };
+
+      // var shipping_address_id;
+      // var billing_address_id;
+      // const isAddressSame = isAddressSameFn(shipping_address, billing_address);
+      //   const billing = billing_address || shipping_address;
+
+      // // ✅ Add addresses
+      // if (isAddressSame) {
+      //   const addressData = {
+      //     user_id,
+      //     name: shipping_address.first_name + " " + shipping_address.last_name,
+      //     email: shipping_address.email,
+      //     mobile: shipping_address.phone,
+      //     address: shipping_address.address,
+      //     pincode: shipping_address.pincode,
+      //     address_type: "shipping",
+      //     landmark: shipping_address.landmark,
+      //     city: shipping_address.city,
+      //     state: shipping_address.state,
+      //   };
+      //   console.log("Address-=--=-If",addressData);
+        
+      //   const savedAddress = await addAddress(addressData); // assume this returns _id
+      //   shipping_address_id = savedAddress;
+      //   billing_address_id = savedAddress;
+      // } else {
+      //   // ✅ Shipping address
+      //   const shippingData = {
+      //     user_id,
+      //     name: shipping_address.first_name + " " + shipping_address.last_name,
+      //     email: shipping_address.email,
+      //     mobile: shipping_address.phone,
+      //     address: shipping_address.address,
+      //     pincode: shipping_address.pincode,
+      //     address_type: "shipping",
+      //     landmark: shipping_address.landmark,
+      //     city: shipping_address.city,
+      //     state: shipping_address.state,
+      //   };
+      //   console.log("Address-=--=-Else",shippingData);
+      //   const savedShipping = await addAddress(shippingData);
+      //   shipping_address_id = savedShipping;
+      //   console.log(billing_address,"billing_address");
+        
+      //   // ✅ Billing address
+      //   const billingData = {
+      //     user_id,
+      //     name: billing_address.first_name + " " + billing_address.last_name,
+      //     email: billing_address.email,
+      //     mobile: billing_address.mobile,
+      //     address: billing_address.address,
+      //     pincode: billing_address.pincode,
+      //     address_type: "billing",
+      //     landmark: billing_address.landmark,
+      //     city: billing_address.city,
+      //     state: billing_address.state,
+      //   };
+      //   const savedBilling = await addAddress(billingData);
+      //   billing_address_id = savedBilling;
+      // }
       const isAddressSameFn = (shipping, billing) => {
-          if (!shipping || !billing) return false;
+        if (!shipping || !billing) return false; // cannot be same if any one missing
 
-          return (
-            shipping.first_name === billing.first_name &&
-            shipping.last_name === billing.last_name &&
-            shipping.email === billing.email &&
-            shipping.phone === billing.phone &&
-            shipping.address === billing.address &&
-            shipping.landmark === billing.landmark &&
-            shipping.pincode === billing.pincode &&
-            shipping.city === billing.city &&
-            shipping.state === billing.state
-          );
-        };
+        const fields = ["first_name", "last_name", "email", "phone", "address", "landmark", "pincode", "city", "state"];
 
-      var shipping_address_id;
-      var billing_address_id;
-      const isAddressSame = isAddressSameFn(shipping_address, billing_address);
+        return fields.every(f => shipping[f] === billing[f]);
+      };
 
-      // ✅ Add addresses
-      if (isAddressSame) {
-        const addressData = {
-          user_id,
-          name: shipping_address.first_name + " " + shipping_address.last_name,
-          email: shipping_address.email,
-          mobile: shipping_address.phone,
-          address: shipping_address.address,
-          pincode: shipping_address.pincode,
-          address_type: "shipping",
-          landmark: shipping_address.landmark,
-          city: shipping_address.city,
-          state: shipping_address.state,
-        };
 
-        const savedAddress = await addAddress(addressData); // assume this returns _id
-        shipping_address_id = savedAddress;
-        billing_address_id = savedAddress;
-      } else {
-        // ✅ Shipping address
-        const shippingData = {
-          user_id,
-          name: shipping_address.name,
-          email: shipping_address.email,
-          mobile: shipping_address.phone,
-          address: shipping_address.address,
-          pincode: shipping_address.pincode,
-          address_type: "shipping",
-          landmark: shipping_address.landmark,
-          city: shipping_address.city,
-          state: shipping_address.state,
-        };
-        const savedShipping = await addAddress(shippingData);
-        shipping_address_id = savedShipping;
+      // Build safe fallback objects
+        const shipping = shipping_address || null;
+        const billing  = billing_address  || null;
 
-        // ✅ Billing address
-        const billingData = {
-          user_id,
-          name: billing_address.first_name + " " + billing_address.last_name,
-          email: billing_address.email,
-          mobile: billing_address.mobile,
-          address: billing_address.address,
-          pincode: billing_address.pincode,
-          address_type: "billing",
-          landmark: billing_address.landmark,
-          city: billing_address.city,
-          state: billing_address.state,
-        };
-        const savedBilling = await addAddress(billingData);
-        billing_address_id = savedBilling;
-      }
+        const isAddressSame = isAddressSameFn(shipping, billing);
+
+        let shipping_address_id = null;
+        let billing_address_id  = null;
+
+        // CASE 1: NO ADDRESS AT ALL (rare but safe)
+        if (!shipping && !billing) {
+          throw new Error("No address provided");
+        }
+
+        // CASE 2: BOTH SAME
+        if (shipping && billing && isAddressSame) {
+          const addressData = {
+            user_id,
+            name: shipping.first_name + " " + shipping.last_name,
+            email: shipping.email,
+            mobile: shipping.phone,
+            address: shipping.address,
+            pincode: shipping.pincode,
+            address_type: "shipping",
+            landmark: shipping.landmark,
+            city: shipping.city,
+            state: shipping.state,
+          };
+
+          const saved = await addAddress(addressData);
+          shipping_address_id = saved;
+          billing_address_id = saved;
+        }
+
+        // CASE 3: BOTH AVAILABLE BUT DIFFERENT
+        else if (shipping && billing) {
+          // save shipping
+          const savedShipping = await addAddress({
+            user_id,
+            name: shipping.first_name + " " + shipping.last_name,
+            email: shipping.email,
+            mobile: shipping.phone,
+            address: shipping.address,
+            pincode: shipping.pincode,
+            address_type: "shipping",
+            landmark: shipping.landmark,
+            city: shipping.city,
+            state: shipping.state,
+          });
+          shipping_address_id = savedShipping;
+
+          // save billing
+          const savedBilling = await addAddress({
+            user_id,
+            name: billing.first_name + " " + billing.last_name,
+            email: billing.email,
+            mobile: billing.phone || billing.mobile,
+            address: billing.address,
+            pincode: billing.pincode,
+            address_type: "billing",
+            landmark: billing.landmark,
+            city: billing.city,
+            state: billing.state,
+          });
+          billing_address_id = savedBilling;
+        }
+
+        // CASE 4: ONLY SHIPPING RECEIVED
+        else if (shipping) {
+          const savedShipping = await addAddress({
+            user_id,
+            name: shipping.first_name + " " + shipping.last_name,
+            email: shipping.email,
+            mobile: shipping.phone,
+            address: shipping.address,
+            pincode: shipping.pincode,
+            address_type: "shipping",
+            landmark: shipping.landmark,
+            city: shipping.city,
+            state: shipping.state,
+          });
+
+          shipping_address_id = savedShipping;
+          billing_address_id = savedShipping; // optional → use same
+        }
+
+        // CASE 5: ONLY BILLING RECEIVED
+        else if (billing) {
+          const savedBilling = await addAddress({
+            user_id,
+            name: billing.first_name + " " + billing.last_name,
+            email: billing.email,
+            mobile: billing.phone || billing.mobile,
+            address: billing.address,
+            pincode: billing.pincode,
+            address_type: "billing",
+            landmark: billing.landmark,
+            city: billing.city,
+            state: billing.state,
+          });
+
+          shipping_address_id = savedBilling;
+          billing_address_id = savedBilling;
+        }
+
       console.log("User Id ",user_id);
       console.log("User shipping_address_id ",shipping_address_id);
       console.log("User billing_address_id ",billing_address_id);
